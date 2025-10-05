@@ -1,0 +1,14 @@
+adddir obj/
+adddir build/
+cdir obj/
+cdir build/
+
+dep GL
+dep GLEW
+dep glfw
+
+incflag -Iinclude/
+include main.cpp
+include stb_image.cpp
+
+build output
