@@ -8,6 +8,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include "shader.h"
+#include "stb_image.h"
 
 #define INIT_SCR_WIDTH 800
 #define INIT_SCR_HEIGHT 600
@@ -196,30 +197,50 @@ std::vector<float> LoadObjFile(std::string obj) {
 	return value;
 }
 
+class Transform {
+	public: 
+	float pitch = 0, yaw = 0, roll = 0;
+	glm::vec3 position = glm::vec3(0,0,0);
+	glm::vec3 scale = glm::vec3(1,1,1);
 
+	glm::mat4 transformMatrix = glm::mat4(1.f);
+	glm::mat4 invTransformMatrix = glm::mat4(1.f);
+	glm::mat4 rotationMatrix = glm::mat4(1.f);
+	glm::mat4 translationMatrix = glm::mat4(1.f);
+	glm::mat4 scaleMatrix = glm::mat4(1.f);
 
-class Model {
+	void UpdateRotation() {
+		transformMatrix = glm::mat4(1.f);
+		translationMatrix = glm::mat4(1.f);
+		rotationMatrix = glm::mat4(1.f);
+		scaleMatrix = glm::mat4(1.f);
+
+		translationMatrix = glm::translate(translationMatrix, position);
+		rotationMatrix = glm::rotate(rotationMatrix, yaw, glm::vec3(0.f, 1.f, 0.f));
+		rotationMatrix = glm::rotate(rotationMatrix, pitch, glm::vec3(1.f, 0.f, 0.f));
+		rotationMatrix = glm::rotate(rotationMatrix, roll, glm::vec3(0.f, 0.f, 1.f));
+		scaleMatrix = glm::scale(scaleMatrix, scale);
+
+		transformMatrix = translationMatrix * rotationMatrix * scaleMatrix;
+		invTransformMatrix = glm::inverse(transformMatrix);
+	}
+};
+
+class Camera : public Transform {
+	float fov = 45;
+};
+
+class Model : public Transform {
 	public:
 	unsigned int VAO;
 	unsigned int VBO;
 	bool usable = false;
 	int vertCount;
 
-	float pitch = 0, yaw = 0, roll = 0;
-	glm::vec3 position = glm::vec3(0,0,0);
-	glm::vec3 scale = glm::vec3(1,1,1);
-
-	glm::mat4 transformMatrix = glm::mat4(1.f);
-	glm::mat4 rotationMatrix = glm::mat4(1.f);
-	glm::mat4 translationMatrix = glm::mat4(1.f);
-	glm::mat4 scaleMatrix = glm::mat4(1.f);
-
 		Model(std::vector<float> obj) {
-			unsigned int VAO;
 			glGenVertexArrays(1, &VAO);
 			glBindVertexArray(VAO);
 
-			unsigned int VBO;
 			glGenBuffers(1, &VBO);
 			glBindBuffer(GL_ARRAY_BUFFER, VBO);
 			glBufferData(GL_ARRAY_BUFFER, obj.size() * sizeof(float), obj.data(), GL_STATIC_DRAW);
@@ -236,21 +257,6 @@ class Model {
 			
 		}
 	
-		void UpdateRotation() {
-			transformMatrix = glm::mat4(1.f);
-			translationMatrix = glm::mat4(1.f);
-			rotationMatrix = glm::mat4(1.f);
-			scaleMatrix = glm::mat4(1.f);
-
-			translationMatrix = glm::translate(translationMatrix, position);
-			rotationMatrix = glm::rotate(rotationMatrix, yaw, glm::vec3(0.f, 1.f, 0.f));
-			rotationMatrix = glm::rotate(rotationMatrix, pitch, glm::vec3(1.f, 0.f, 0.f));
-			rotationMatrix = glm::rotate(rotationMatrix, roll, glm::vec3(0.f, 0.f, 1.f));
-			scaleMatrix = glm::scale(scaleMatrix, scale);
-
-			transformMatrix = translationMatrix * rotationMatrix * scaleMatrix;
-		}
-
 		void Unload() {
 			glBindVertexArray(0);
 			glDeleteBuffers(1, &VBO);
@@ -259,56 +265,16 @@ class Model {
 		}
 };
 
-float vertices[] = {
-    -0.5f, -0.5f, 0.0f,
-     0.5f, -0.5f, 0.0f,
-     0.0,  0.5f, 0.0f
-};
-std::vector<float> objTest = {
-    -0.5f, -0.5f, -0.5f,  0.0f, 0.0f, 0.f, 0.f, 0.f,
-     0.5f, -0.5f, -0.5f,  1.0f, 0.0f, 0.f, 0.f, 0.f,
-     0.5f,  0.5f, -0.5f,  1.0f, 1.0f, 0.f, 0.f, 0.f,
-     0.5f,  0.5f, -0.5f,  1.0f, 1.0f, 0.f, 0.f, 0.f,
-    -0.5f,  0.5f, -0.5f,  0.0f, 1.0f, 0.f, 0.f, 0.f,
-    -0.5f, -0.5f, -0.5f,  0.0f, 0.0f, 0.f, 0.f, 0.f,
+void getMouseDelta(double mouseX, double mouseY, double *mouseReturnX, double *mouseReturnY) {
+	static double lastX = 0;
+	static double lastY = 0;
 
-    -0.5f, -0.5f,  0.5f,  0.0f, 0.0f, 0.f, 0.f, 0.f,
-     0.5f, -0.5f,  0.5f,  1.0f, 0.0f, 0.f, 0.f, 0.f,
-     0.5f,  0.5f,  0.5f,  1.0f, 1.0f, 0.f, 0.f, 0.f,
-     0.5f,  0.5f,  0.5f,  1.0f, 1.0f, 0.f, 0.f, 0.f,
-    -0.5f,  0.5f,  0.5f,  0.0f, 1.0f, 0.f, 0.f, 0.f,
-    -0.5f, -0.5f,  0.5f,  0.0f, 0.0f, 0.f, 0.f, 0.f,
+	*mouseReturnX = mouseX - lastX;
+	*mouseReturnY = mouseY - lastY;
 
-    -0.5f,  0.5f,  0.5f,  1.0f, 0.0f, 0.f, 0.f, 0.f,
-    -0.5f,  0.5f, -0.5f,  1.0f, 1.0f, 0.f, 0.f, 0.f,
-    -0.5f, -0.5f, -0.5f,  0.0f, 1.0f, 0.f, 0.f, 0.f,
-    -0.5f, -0.5f, -0.5f,  0.0f, 1.0f, 0.f, 0.f, 0.f,
-    -0.5f, -0.5f,  0.5f,  0.0f, 0.0f, 0.f, 0.f, 0.f,
-    -0.5f,  0.5f,  0.5f,  1.0f, 0.0f, 0.f, 0.f, 0.f,
-
-     0.5f,  0.5f,  0.5f,  1.0f, 0.0f, 0.f, 0.f, 0.f,
-     0.5f,  0.5f, -0.5f,  1.0f, 1.0f, 0.f, 0.f, 0.f,
-     0.5f, -0.5f, -0.5f,  0.0f, 1.0f, 0.f, 0.f, 0.f,
-     0.5f, -0.5f, -0.5f,  0.0f, 1.0f, 0.f, 0.f, 0.f,
-     0.5f, -0.5f,  0.5f,  0.0f, 0.0f, 0.f, 0.f, 0.f,
-     0.5f,  0.5f,  0.5f,  1.0f, 0.0f, 0.f, 0.f, 0.f,
-
-    -0.5f, -0.5f, -0.5f,  0.0f, 1.0f, 0.f, 0.f, 0.f,
-     0.5f, -0.5f, -0.5f,  1.0f, 1.0f, 0.f, 0.f, 0.f,
-     0.5f, -0.5f,  0.5f,  1.0f, 0.0f, 0.f, 0.f, 0.f,
-     0.5f, -0.5f,  0.5f,  1.0f, 0.0f, 0.f, 0.f, 0.f,
-    -0.5f, -0.5f,  0.5f,  0.0f, 0.0f, 0.f, 0.f, 0.f,
-    -0.5f, -0.5f, -0.5f,  0.0f, 1.0f, 0.f, 0.f, 0.f,
-
-    -0.5f,  0.5f, -0.5f,  0.0f, 1.0f, 0.f, 0.f, 0.f,
-     0.5f,  0.5f, -0.5f,  1.0f, 1.0f, 0.f, 0.f, 0.f,
-     0.5f,  0.5f,  0.5f,  1.0f, 0.0f, 0.f, 0.f, 0.f,
-     0.5f,  0.5f,  0.5f,  1.0f, 0.0f, 0.f, 0.f, 0.f,
-    -0.5f,  0.5f,  0.5f,  0.0f, 0.0f, 0.f, 0.f, 0.f,
-    -0.5f,  0.5f, -0.5f,  0.0f, 1.0f, 0.f, 0.f, 0.f,
-};
-
-
+	lastX = mouseX;
+	lastY = mouseY;
+}
 
 int main() {
 	if(glfwInit() == GL_FALSE) {
@@ -326,26 +292,18 @@ int main() {
 		return 1;
 	}
 	glfwMakeContextCurrent(window);
+	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 	GLenum err = glewInit();
 	if(err != GLEW_OK) {
 		std::cerr << "Failed to init GLEW: " << glewGetErrorString(err) << std::endl;
 		glfwTerminate();
 		return 1;
 	}
+	//glfwSwapInterval(0);
 	glViewport(0,0,INIT_SCR_WIDTH,INIT_SCR_HEIGHT);
 	glfwSetFramebufferSizeCallback(window, onWinResize);
 
 	glEnable(GL_DEPTH_TEST);
-	/*unsigned int VAO;
-	glGenVertexArrays(1, &VAO);
-	glBindVertexArray(VAO);
-
-	unsigned int VBO;
-	glGenBuffers(1, &VBO);
-	glBindBuffer(GL_ARRAY_BUFFER, VBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)(0));
-	glEnableVertexAttribArray(0);*/
 	std::string objFile;
 	std::ifstream file("cube.obj");
 	for(std::string line; std::getline(file,line); objFile += line + "\n");
@@ -353,33 +311,76 @@ int main() {
 	//Model model(objTest);
 	Model model(LoadObjFile(objFile));
 
+	Model light(LoadObjFile(objFile));
+	light.scale = glm::vec3(0.2,0.2,0.2);
+	light.position = glm::vec3(1.2f, 1.0f, 2.0f);
+	model.position.y = -0.5;
+
 	glm::mat4 perspective = glm::perspective(glm::radians(45.f), (float)INIT_SCR_WIDTH/(float)INIT_SCR_HEIGHT, 0.1f, 100.f);
 
 	Shader program("shaders/vertex.glsl", "shaders/fragment.glsl");
 
-	float a = 0;
+	
+	int width, height, channelCount;
+	unsigned char *data = stbi_load("sky.jpg", &width, &height, &channelCount, 0);
+	unsigned int texture;
+	glGenTextures(1, &texture);
+
+	glBindTexture(GL_TEXTURE_2D, texture);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+	glGenerateMipmap(GL_TEXTURE_2D);
+
+	stbi_image_free(data);
+
+
+
+	Camera cam;
+	double mouseX;
+	double mouseY;
 	while(!glfwWindowShouldClose(window)) {
-		if(!glfwGetWindowAttrib(window, GLFW_FOCUSED)) std::cout << "hi" << std::endl;
 		glClearColor(0, 0, 0, 1);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		if(glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
+			cam.position.z += cos(cam.yaw)*0.03*cos(cam.pitch);
+			cam.position.x += sin(cam.yaw)*0.03*cos(cam.pitch);
 
-	glm::mat4 view(1.f);
-	view = glm::translate(view, glm::vec3(0.f,a,-4.f));
-	model.yaw+=0.01;
-	if(glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
-		a-=0.01;
-	}
-	if(glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
-		a+=0.01;
-	}
+			cam.position.y -= sin(cam.pitch)*0.03;
+		}
+		if(glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
+			cam.position.z -= cos(cam.yaw)*0.03*cos(cam.pitch);
+			cam.position.x -= sin(cam.yaw)*0.03*cos(cam.pitch);
+
+			cam.position.y += sin(cam.pitch)*0.03;
+		}
+		if(glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+			cam.position.z += sin(cam.yaw)*0.02;
+			cam.position.x -= cos(cam.yaw)*0.02;
+		}
+		if(glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+			cam.position.z -= sin(cam.yaw)*0.02;
+			cam.position.x += cos(cam.yaw)*0.02;
+		}
+
+		glfwGetCursorPos(window, &mouseX, &mouseY);
+		getMouseDelta(mouseX, mouseY, &mouseX, &mouseY);
+		cam.yaw -= mouseX/300;
+		cam.pitch -= mouseY/300;
 		model.UpdateRotation();
+		light.UpdateRotation();
+		cam.UpdateRotation();
 
 		glUseProgram(program.programID);
 		glUniformMatrix4fv(glGetUniformLocation(program.programID, "modelMat"), 1, GL_FALSE, glm::value_ptr(model.transformMatrix));
-		glUniformMatrix4fv(glGetUniformLocation(program.programID, "viewMat"), 1, GL_FALSE, glm::value_ptr(view));
+		glUniformMatrix4fv(glGetUniformLocation(program.programID, "viewMat"), 1, GL_FALSE, glm::value_ptr(cam.invTransformMatrix));
 		glUniformMatrix4fv(glGetUniformLocation(program.programID, "perspMat"), 1, GL_FALSE, glm::value_ptr(perspective));
+		glUniform3fv(glGetUniformLocation(program.programID, "viewPos"), 1, glm::value_ptr(cam.position));
 		glBindVertexArray(model.VAO);
 		glDrawArrays(GL_TRIANGLES, 0, model.vertCount);
+
+		
+		glBindVertexArray(light.VAO);
+		glUniformMatrix4fv(glGetUniformLocation(program.programID, "modelMat"), 1, GL_FALSE, glm::value_ptr(light.transformMatrix));
+		glDrawArrays(GL_TRIANGLES, 0, light.vertCount);
 
 		glfwSwapBuffers(window);
 		glfwPollEvents();

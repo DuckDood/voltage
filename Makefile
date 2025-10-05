@@ -1,4 +1,4 @@
-all: obj/ build/ obj/main.o build/output 
+all: obj/ build/ obj/main.o obj/stb_image.o build/output 
 
 clean:
 	rm -r obj/ build/ 
@@ -13,6 +13,9 @@ build/:
 obj/main.o: src/main.cpp
 	${CXX} src/main.cpp -c -o obj/main.o  -Iinclude/ 
 
-build/output: obj/main.o 
-	${CXX} obj/main.o  -o build/output -lGL -lGLEW -lglfw  
+obj/stb_image.o: src/stb_image.cpp
+	${CXX} src/stb_image.cpp -c -o obj/stb_image.o  
+
+build/output: obj/main.o obj/stb_image.o 
+	${CXX} obj/main.o obj/stb_image.o  -o build/output -lGL -lGLEW -lglfw  
 
