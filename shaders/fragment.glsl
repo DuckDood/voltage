@@ -2,9 +2,8 @@
 
 struct Material {
 	float shininess;
-	vec3 ambient;
-	vec3 diffuse;
-	vec3 specular;
+	sampler2D diffuse;
+	sampler2D specular;
 };
 
 layout (location = 0) out vec4 FragColor;
@@ -13,41 +12,162 @@ in vec2 texCoord;
 in vec3 normal;
 in vec3 FragPos;
 
-uniform sampler2D tex;
 uniform vec3 viewPos;
+uniform Material material;
 
-vec3 lightColor = vec3(1., 1., 1.);
+vec3 lightColor = vec3(1, 1, 1);
 
 // make uniform
-vec3 lightPos = vec3(1.2f, 1.0f, 2.0f);
 
+struct Light {
+	vec3 position;
+	vec3 direction;
+	vec3 ambient;
+	vec3 diffuse;
+	vec3 specular;
 
-void main() {
-	float ambientStrength = 0.1;
-	float specStrength = 0.5;
+	float constant;
+	float linear;
+	float quadratic;
 
+	float cutOff;
 
-	vec4 texColor = texture(tex, texCoord);
-	//vec4 texColor = vec4(1.0f, 0.5f, 0.31f, 1.0);
+	int type;
+};
 
-	vec3 objColor = vec3(texColor.x, texColor.y, texColor.z);
+uniform Light light;
+
+vec3 resolvePointLight(Light pointLight, Material objectMaterial, vec2 textureCoord, vec3 objectNormal) {
+	vec4 texColorVec4 = texture(objectMaterial.diffuse, textureCoord);
+	vec3 texColor = vec3(texColorVec4);
+
+	vec4 specColorVec4 = texture(objectMaterial.specular, textureCoord);
+	vec3 specColor = vec3(specColorVec4);
+
+	float dist = length(pointLight.position - FragPos);
+	float attenuation = 1. / (pointLight.constant + pointLight.linear * dist + pointLight.quadratic * (dist * dist));
+
+	vec3 result;
 
 	// ambient
-	vec3 ambient = ambientStrength * lightColor;
+	vec3 ambient = pointLight.ambient * texColor;
 
 	// diffuse
-	vec3 norm = normal;
-	vec3 lightDir = normalize(lightPos - FragPos);
+	vec3 norm = normalize(objectNormal);
+
+	vec3 lightDir = normalize(pointLight.position - FragPos);
 
 	float diff = max(dot(norm, lightDir), 0.0);
-	vec3 diffuse = diff * lightColor;
+	vec3 diffuse = pointLight.diffuse * (diff * texColor);
 
 	// specular
 	vec3 viewDir = normalize(viewPos - FragPos);
 	vec3 reflectDir = reflect(-lightDir, norm);
-	float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32);
-	vec3 specular = specStrength * spec * lightColor;
+	float spec = pow(max(dot(viewDir, reflectDir), 0.0), objectMaterial.shininess);
+	vec3 specular = pointLight.specular * (spec * specColor);
+	if(objectMaterial.shininess == 0) {
+		specular = vec3(0,0,0);
+	}
+	ambient *= attenuation;
+	diffuse *= attenuation;
+	specular *= attenuation;
 
-	vec3 result = (ambient + diffuse + specular) * objColor;
+	result = (ambient + diffuse + specular);
+	return result;
+}
+
+vec3 resolveDirectionalLight(Light directionLight, Material objectMaterial, vec2 textureCoord, vec3 objectNormal) {
+	vec4 texColorVec4 = texture(objectMaterial.diffuse, textureCoord);
+	vec3 texColor = vec3(texColorVec4);
+
+	vec4 specColorVec4 = texture(objectMaterial.specular, textureCoord);
+	vec3 specColor = vec3(specColorVec4);
+
+	vec3 result;
+
+	// ambient
+	vec3 ambient = directionLight.ambient * texColor;
+
+	// diffuse
+	vec3 norm = normalize(objectNormal);
+
+	vec3 lightDir = normalize(-directionLight.direction);
+
+	float diff = max(dot(norm, lightDir), 0.0);
+	vec3 diffuse = directionLight.diffuse * (diff * texColor);
+
+	// specular
+	vec3 viewDir = normalize(viewPos - FragPos);
+	vec3 reflectDir = reflect(-lightDir, norm);
+	float spec = pow(max(dot(viewDir, reflectDir), 0.0), objectMaterial.shininess);
+	vec3 specular = directionLight.specular * (spec * specColor);
+	if(objectMaterial.shininess == 0) {
+		specular = vec3(0,0,0);
+	}
+	result = (ambient + diffuse + specular);
+	return result;
+}
+
+vec3 resolveSpotlight(Light spotLight, Material objectMaterial, vec2 textureCoord, vec3 objectNormal) {
+	vec4 texColorVec4 = texture(objectMaterial.diffuse, textureCoord);
+	vec3 texColor = vec3(texColorVec4);
+
+	vec4 specColorVec4 = texture(objectMaterial.specular, textureCoord);
+	vec3 specColor = vec3(specColorVec4);
+
+	float dist = length(spotLight.position - FragPos);
+	float attenuation = 1. / (spotLight.constant + spotLight.linear * dist + spotLight.quadratic * (dist * dist));
+
+	vec3 result;
+
+	// ambient
+	vec3 ambient = spotLight.ambient * texColor;
+
+	// diffuse
+	vec3 norm = normalize(objectNormal);
+
+	vec3 lightDir = normalize(spotLight.position - FragPos);
+
+	float theta = dot(lightDir, normalize(-spotLight.direction));
+
+	if(theta > spotLight.cutOff) {
+
+		float diff = max(dot(norm, lightDir), 0.0);
+		vec3 diffuse = spotLight.diffuse * (diff * texColor);
+
+		// specular
+		vec3 viewDir = normalize(viewPos - FragPos);
+		vec3 reflectDir = reflect(-lightDir, norm);
+		float spec = pow(max(dot(viewDir, reflectDir), 0.0), objectMaterial.shininess);
+		vec3 specular = spotLight.specular * (spec * specColor);
+		if(objectMaterial.shininess == 0) {
+			specular = vec3(0,0,0);
+		}
+		ambient *= attenuation;
+		diffuse *= attenuation;
+		specular *= attenuation;
+
+		result = (ambient + diffuse + specular);
+	} else {
+		ambient *= attenuation;
+		result = ambient;
+	}
+	return result;
+}
+
+
+void main() {
+	vec3 result;
+	switch(light.type) {
+		case 0:
+		result = resolveDirectionalLight(light, material, texCoord, normal);
+		break;
+		case 1:
+		result = resolvePointLight(light, material, texCoord, normal);
+		break;
+		case 2:
+		result = resolveSpotlight(light, material, texCoord, normal);
+		break;
+	}
 	FragColor = vec4(result, 1.0);
 }

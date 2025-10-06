@@ -1,4 +1,6 @@
 #include <GL/glew.h>
+#include <glm/glm.hpp>
+#include <glm/gtc/type_ptr.hpp>
 #include <fstream>
 #include <iostream>
 
@@ -54,5 +56,17 @@ class Shader {
 
 		glDeleteShader(vertex);
 		glDeleteShader(fragment);
+	}
+	void setUniformVec3(const char* uniformName, glm::vec3 value) {
+		glUniform3fv(glGetUniformLocation(this->programID, uniformName), 1, glm::value_ptr(value));
+	}
+	void setUniformVec3Floats(const char* uniformName, float x, float y, float z) {
+		glUniform3fv(glGetUniformLocation(this->programID, uniformName), 1, glm::value_ptr(glm::vec3(x,y,z)));
+	}
+	void setUniformInt(const char* uniformName, int x) {
+		glUniform1i(glGetUniformLocation(this->programID, uniformName), x);
+	}
+	void setUniformFloat(const char* uniformName, float x) {
+		glUniform1f(glGetUniformLocation(this->programID, uniformName), x);
 	}
 };

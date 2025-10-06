@@ -312,8 +312,9 @@ int main() {
 	Model model(LoadObjFile(objFile));
 
 	Model light(LoadObjFile(objFile));
+	std::cout << "Parsing Done!\n";
 	light.scale = glm::vec3(0.2,0.2,0.2);
-	light.position = glm::vec3(1.2f, 1.0f, 2.0f);
+	light.position = glm::vec3(0.f, 0.0f, 0.f);
 	model.position.y = -0.5;
 
 	glm::mat4 perspective = glm::perspective(glm::radians(45.f), (float)INIT_SCR_WIDTH/(float)INIT_SCR_HEIGHT, 0.1f, 100.f);
@@ -322,11 +323,21 @@ int main() {
 
 	
 	int width, height, channelCount;
-	unsigned char *data = stbi_load("sky.jpg", &width, &height, &channelCount, 0);
+	unsigned char *data = stbi_load("bricks.jpg", &width, &height, &channelCount, 0);
 	unsigned int texture;
 	glGenTextures(1, &texture);
 
+	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, texture);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+	glGenerateMipmap(GL_TEXTURE_2D);
+
+	data = stbi_load("quakefloorcontrast.jpg", &width, &height, &channelCount, 0);
+	unsigned int texture2;
+	glGenTextures(1, &texture2);
+
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, texture2);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
 	glGenerateMipmap(GL_TEXTURE_2D);
 
@@ -361,6 +372,19 @@ int main() {
 			cam.position.x += cos(cam.yaw)*0.02;
 		}
 
+		if(glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
+			model.position.y+=0.01;
+		}
+		if(glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
+			model.position.y-=0.01;
+		}
+		if(glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
+			model.position.z+=0.01;
+		}
+		if(glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {
+			model.position.z-=0.01;
+		}
+
 		glfwGetCursorPos(window, &mouseX, &mouseY);
 		getMouseDelta(mouseX, mouseY, &mouseX, &mouseY);
 		cam.yaw -= mouseX/300;
@@ -374,7 +398,28 @@ int main() {
 		glUniformMatrix4fv(glGetUniformLocation(program.programID, "viewMat"), 1, GL_FALSE, glm::value_ptr(cam.invTransformMatrix));
 		glUniformMatrix4fv(glGetUniformLocation(program.programID, "perspMat"), 1, GL_FALSE, glm::value_ptr(perspective));
 		glUniform3fv(glGetUniformLocation(program.programID, "viewPos"), 1, glm::value_ptr(cam.position));
+
+		glUniform1f(glGetUniformLocation(program.programID, "material.shininess"), 32.f);
+
+		glUniform1i(glGetUniformLocation(program.programID, "material.diffuse"), 0);
+		glUniform1i(glGetUniformLocation(program.programID, "material.specular"), 1);
+
+		glUniform1f(glGetUniformLocation(program.programID, "light.constant"), 1.f);
+		glUniform1f(glGetUniformLocation(program.programID, "light.linear"), 0.09f);
+		glUniform1f(glGetUniformLocation(program.programID, "light.quadratic"), 0.032f);
+		glUniform1i(glGetUniformLocation(program.programID, "light.type"), 1);
+
+		program.setUniformVec3Floats("light.ambient", 0.2f, 0.2f, 0.2f);
+		program.setUniformVec3Floats("light.diffuse", 1.5f, 1.5f, 1.5f);
+		program.setUniformVec3Floats("light.specular", 1.f, 1.f, 1.f);
+
+		program.setUniformVec3Floats("light.position", 0.f, 0.f, 0.f);
+		program.setUniformVec3Floats("light.direction", -0.0f, -0.1f, -0.3f);
+
+		glUniform1f(glGetUniformLocation(program.programID, "light.cutOff"), glm::cos(glm::radians(12.5f)));
+
 		glBindVertexArray(model.VAO);
+
 		glDrawArrays(GL_TRIANGLES, 0, model.vertCount);
 
 		
