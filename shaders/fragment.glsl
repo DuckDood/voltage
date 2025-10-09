@@ -35,7 +35,6 @@ struct Light {
 	int type;
 };
 
-uniform Light light;
 
 vec3 resolvePointLight(Light pointLight, Material objectMaterial, vec2 textureCoord, vec3 objectNormal) {
 	vec4 texColorVec4 = texture(objectMaterial.diffuse, textureCoord);
@@ -155,19 +154,23 @@ vec3 resolveSpotlight(Light spotLight, Material objectMaterial, vec2 textureCoor
 	return result;
 }
 
+uniform Light light[256];
+uniform int lightNumber;
 
 void main() {
-	vec3 result;
-	switch(light.type) {
-		case 0:
-		result = resolveDirectionalLight(light, material, texCoord, normal);
-		break;
-		case 1:
-		result = resolvePointLight(light, material, texCoord, normal);
-		break;
-		case 2:
-		result = resolveSpotlight(light, material, texCoord, normal);
-		break;
+	vec3 result = vec3(0.,0.,0.);
+	for(int i = 0; i < lightNumber; i++) {
+		switch(light[i].type) {
+			case 0:
+			result += resolveDirectionalLight(light[i], material, texCoord, normal);
+			break;
+			case 1:
+			result += resolvePointLight(light[i], material, texCoord, normal);
+			break;
+			case 2:
+			result += resolveSpotlight(light[i], material, texCoord, normal);
+			break;
+		}
 	}
 	FragColor = vec4(result, 1.0);
 }

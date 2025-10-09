@@ -7,8 +7,19 @@ dep GL
 dep GLEW
 dep glfw
 
+incflaf -O2
 incflag -Iinclude/
 include main.cpp
 include stb_image.cpp
 
-build output
+build quasar
+
+rmbuild /
+
+include objCache.cpp
+
+rmdep GL
+rmdep GLEW
+rmdep glfw
+
+build cacheObj

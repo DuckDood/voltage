@@ -179,7 +179,6 @@ std::vector<float> LoadObjFile(std::string obj) {
 
 		}
 	} 
-	//return {triPoints, texCoords, normals};
 	std::vector<float> value;
 	for(int i = 0; i < triPoints.size(); i++) {
 		value.push_back(triPoints.at(i).x);
@@ -193,6 +192,20 @@ std::vector<float> LoadObjFile(std::string obj) {
 		value.push_back(normals.at(i).y);
 		value.push_back(normals.at(i).z);
 	}
+	return value;
+}
+std::vector<float> load3dCache(std::string path) {
+	std::ifstream cacheFile(path, std::ios::binary);
+	if(!cacheFile.good()) {
+		std::cerr << "Cache file does not exist.\n";
+	}
+	cacheFile.seekg(0,std::ios::end);
+	int size = cacheFile.tellg();
+	cacheFile.seekg(0,std::ios::beg);
+
+	std::vector<float> value(size/sizeof(float));
+
+	cacheFile.read((char*)value.data(), size);
 
 	return value;
 }
@@ -209,6 +222,8 @@ class Transform {
 	glm::mat4 translationMatrix = glm::mat4(1.f);
 	glm::mat4 scaleMatrix = glm::mat4(1.f);
 
+	Transform* parent = NULL;
+
 	void UpdateRotation() {
 		transformMatrix = glm::mat4(1.f);
 		translationMatrix = glm::mat4(1.f);
@@ -222,12 +237,25 @@ class Transform {
 		scaleMatrix = glm::scale(scaleMatrix, scale);
 
 		transformMatrix = translationMatrix * rotationMatrix * scaleMatrix;
+		if(parent != NULL) {
+			transformMatrix = parent->transformMatrix * transformMatrix;
+		}
 		invTransformMatrix = glm::inverse(transformMatrix);
 	}
 };
 
 class Camera : public Transform {
-	float fov = 45;
+	public:
+	float fov;
+	Camera() {
+		fov = glm::radians(45.f);
+	}
+};
+
+struct Material {
+	GLint diffuseTex;
+	GLint specularTex;
+	// do it later
 };
 
 class Model : public Transform {
@@ -256,6 +284,12 @@ class Model : public Transform {
 			usable = true;
 			
 		}
+		Model(Model *m) {
+			this->VAO = m->VAO;
+			this->VBO = m->VBO;
+			this->vertCount = m->vertCount;
+			usable = true;
+		}
 	
 		void Unload() {
 			glBindVertexArray(0);
@@ -274,6 +308,38 @@ void getMouseDelta(double mouseX, double mouseY, double *mouseReturnX, double *m
 
 	lastX = mouseX;
 	lastY = mouseY;
+}
+
+struct Light {
+	glm::vec3 position;
+	glm::vec3 direction;
+	glm::vec3 ambient;
+	glm::vec3 diffuse;
+	glm::vec3 specular;
+
+	float constant;
+	float linear;
+	float quadratic;
+
+	float cutOff;
+
+	int type;
+};
+
+void setSceneLights(Shader shader, std::vector<Light*> lights) {
+	shader.setUniformInt("lightNumber", lights.size());
+	for(int i = 0; i<lights.size(); i++) {
+		shader.setUniformFloat(("light["+std::to_string(i)+"].constant").c_str(), lights.at(i)->constant);
+		shader.setUniformFloat(("light["+std::to_string(i)+"].linear").c_str(), lights.at(i)->linear);
+		shader.setUniformFloat(("light["+std::to_string(i)+"].quadratic").c_str(), lights.at(i)->quadratic);
+		shader.setUniformInt(("light["+std::to_string(i)+"].type").c_str(), lights.at(i)->type);
+		shader.setUniformVec3(("light["+std::to_string(i)+"].ambient").c_str(), lights.at(i)->ambient);
+		shader.setUniformVec3(("light["+std::to_string(i)+"].diffuse").c_str(), lights.at(i)->diffuse);
+		shader.setUniformVec3(("light["+std::to_string(i)+"].specular").c_str(), lights.at(i)->specular);
+		shader.setUniformVec3(("light["+std::to_string(i)+"].position").c_str(), lights.at(i)->position);
+		shader.setUniformVec3(("light["+std::to_string(i)+"].direction").c_str(), lights.at(i)->direction);
+		shader.setUniformFloat(("light["+std::to_string(i)+"].cutOff").c_str(), lights.at(i)->cutOff);
+	}
 }
 
 int main() {
@@ -304,26 +370,22 @@ int main() {
 	glfwSetFramebufferSizeCallback(window, onWinResize);
 
 	glEnable(GL_DEPTH_TEST);
-	std::string objFile;
-	std::ifstream file("cube.obj");
-	for(std::string line; std::getline(file,line); objFile += line + "\n");
+	//glEnable(GL_CULL_FACE);
+	//glCullFace(GL_BACK);
 
-	//Model model(objTest);
-	Model model(LoadObjFile(objFile));
-
-	Model light(LoadObjFile(objFile));
+	Model model(load3dCache("cache/dragon.qucache"));
 	std::cout << "Parsing Done!\n";
-	light.scale = glm::vec3(0.2,0.2,0.2);
-	light.position = glm::vec3(0.f, 0.0f, 0.f);
-	model.position.y = -0.5;
+	model.position.y = -0.5*30;
 
-	glm::mat4 perspective = glm::perspective(glm::radians(45.f), (float)INIT_SCR_WIDTH/(float)INIT_SCR_HEIGHT, 0.1f, 100.f);
+	Camera cam;
+
+	glm::mat4 perspective = glm::perspective(cam.fov, (float)INIT_SCR_WIDTH/(float)INIT_SCR_HEIGHT, 0.1f, 100.f);
 
 	Shader program("shaders/vertex.glsl", "shaders/fragment.glsl");
 
 	
 	int width, height, channelCount;
-	unsigned char *data = stbi_load("bricks.jpg", &width, &height, &channelCount, 0);
+	unsigned char *data = stbi_load("resources/textures/bricks.jpg", &width, &height, &channelCount, 0);
 	unsigned int texture;
 	glGenTextures(1, &texture);
 
@@ -331,8 +393,9 @@ int main() {
 	glBindTexture(GL_TEXTURE_2D, texture);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
 	glGenerateMipmap(GL_TEXTURE_2D);
+	stbi_image_free(data);
 
-	data = stbi_load("quakefloorcontrast.jpg", &width, &height, &channelCount, 0);
+	data = stbi_load("resources/textures/bricks.jpg", &width, &height, &channelCount, 0);
 	unsigned int texture2;
 	glGenTextures(1, &texture2);
 
@@ -345,10 +408,33 @@ int main() {
 
 
 
-	Camera cam;
+	std::vector<Light*> lights;
+	
+	Light sun;
+	sun.type = 1;
+	sun.ambient = glm::vec3(0.2,0.2,0.2);
+	sun.diffuse = glm::vec3(1.5, 1.5 ,1.5);
+	sun.specular = glm::vec3(1.f, 1.f, 1.f);
+	sun.position = glm::vec3(0.f, 1.f, 0.3f);
+	sun.direction = glm::vec3(0.f, 1.f, 0.0f);
+	sun.constant = 1.f;
+	sun.linear = 0.09f;
+	sun.quadratic = 0.032f;
+	sun.cutOff = glm::cos(glm::radians(12.5f));
+	
+	lights.push_back(&sun);
+
 	double mouseX;
 	double mouseY;
+
+	int winX;
+	int winY;
+
 	while(!glfwWindowShouldClose(window)) {
+		glfwGetCursorPos(window, &mouseX, &mouseY);
+		getMouseDelta(mouseX, mouseY, &mouseX, &mouseY);
+		glfwGetWindowSize(window, &winX, &winY);
+
 		glClearColor(0, 0, 0, 1);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		if(glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
@@ -372,6 +458,13 @@ int main() {
 			cam.position.x += cos(cam.yaw)*0.02;
 		}
 
+		if(glfwGetKey(window, GLFW_KEY_COMMA) == GLFW_PRESS) {
+			cam.fov += glm::radians(1.);
+		}
+		if(glfwGetKey(window, GLFW_KEY_PERIOD) == GLFW_PRESS) {
+			cam.fov -= glm::radians(1.);
+		}
+
 		if(glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
 			model.position.y+=0.01;
 		}
@@ -384,14 +477,14 @@ int main() {
 		if(glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {
 			model.position.z-=0.01;
 		}
+		model.yaw-=0.02;
+		model.pitch-=0.01;
 
-		glfwGetCursorPos(window, &mouseX, &mouseY);
-		getMouseDelta(mouseX, mouseY, &mouseX, &mouseY);
 		cam.yaw -= mouseX/300;
 		cam.pitch -= mouseY/300;
 		model.UpdateRotation();
-		light.UpdateRotation();
 		cam.UpdateRotation();
+		perspective = glm::perspective(cam.fov, (float)winX/(float)winY, 0.1f, 100.f);
 
 		glUseProgram(program.programID);
 		glUniformMatrix4fv(glGetUniformLocation(program.programID, "modelMat"), 1, GL_FALSE, glm::value_ptr(model.transformMatrix));
@@ -399,33 +492,63 @@ int main() {
 		glUniformMatrix4fv(glGetUniformLocation(program.programID, "perspMat"), 1, GL_FALSE, glm::value_ptr(perspective));
 		glUniform3fv(glGetUniformLocation(program.programID, "viewPos"), 1, glm::value_ptr(cam.position));
 
-		glUniform1f(glGetUniformLocation(program.programID, "material.shininess"), 32.f);
+		program.setUniformFloat("material.shininess", 32.f);
 
-		glUniform1i(glGetUniformLocation(program.programID, "material.diffuse"), 0);
-		glUniform1i(glGetUniformLocation(program.programID, "material.specular"), 1);
+		program.setUniformInt("material.diffuse", 1);
+		program.setUniformInt("material.specular", 1);
+/*
+		program.setUniformInt("lightNumber", 3);
 
-		glUniform1f(glGetUniformLocation(program.programID, "light.constant"), 1.f);
-		glUniform1f(glGetUniformLocation(program.programID, "light.linear"), 0.09f);
-		glUniform1f(glGetUniformLocation(program.programID, "light.quadratic"), 0.032f);
-		glUniform1i(glGetUniformLocation(program.programID, "light.type"), 1);
+		program.setUniformInt("light[0].type", 0);
 
-		program.setUniformVec3Floats("light.ambient", 0.2f, 0.2f, 0.2f);
-		program.setUniformVec3Floats("light.diffuse", 1.5f, 1.5f, 1.5f);
-		program.setUniformVec3Floats("light.specular", 1.f, 1.f, 1.f);
+		program.setUniformVec3Floats("light[0].ambient", 0.2f, 0.2f, 0.2f);
+		program.setUniformVec3Floats("light[0].diffuse", 0.7f, 0.7f, 0.7f);
+		program.setUniformVec3Floats("light[0].specular", 1.f, 1.f, 1.f);
 
-		program.setUniformVec3Floats("light.position", 0.f, 0.f, 0.f);
-		program.setUniformVec3Floats("light.direction", -0.0f, -0.1f, -0.3f);
+		program.setUniformVec3Floats("light[0].direction", -0.0f, -0.7f, -0.3f);
 
-		glUniform1f(glGetUniformLocation(program.programID, "light.cutOff"), glm::cos(glm::radians(12.5f)));
+
+		program.setUniformFloat("light[1].constant", 1.f);
+		program.setUniformFloat("light[1].linear", 0.09f);
+		program.setUniformFloat("light[1].quadratic", 0.032f);
+
+		program.setUniformInt("light[1].type", 1);
+
+		program.setUniformVec3Floats("light[1].ambient", 0.2f, 0.2f, 0.2f);
+		program.setUniformVec3Floats("light[1].diffuse", 0.7f, 0.7f, 0.7f);
+		program.setUniformVec3Floats("light[1].specular", 1.f, 1.f, 1.f);
+
+		program.setUniformVec3Floats("light[1].position", 0.f, 0.f, 0.f);
+
+		program.setUniformFloat("light[1].cutOff", glm::cos(glm::radians(12.5f)));
+
+
+		program.setUniformFloat("light[2].constant", 1.f);
+		program.setUniformFloat("light[2].linear", 0.09f);
+		program.setUniformFloat("light[2].quadratic", 0.032f);
+
+		program.setUniformInt("light[2].type", 2);
+
+		program.setUniformVec3Floats("light[2].ambient", 0.2f, 0.2f, 0.2f);
+		program.setUniformVec3Floats("light[2].diffuse", 0.7f, 0.7f, 0.7f);
+		program.setUniformVec3Floats("light[2].specular", 1.f, 1.f, 1.f);
+
+		program.setUniformVec3Floats("light[2].position", 0.f, 1.f, 0.f);
+		program.setUniformVec3Floats("light[2].direction", -0.0f, -0.7f, -0.f);
+
+		program.setUniformFloat("light[2].cutOff", glm::cos(glm::radians(12.5f)));*/
+		setSceneLights(program, lights);
+
+
 
 		glBindVertexArray(model.VAO);
 
 		glDrawArrays(GL_TRIANGLES, 0, model.vertCount);
 
 		
-		glBindVertexArray(light.VAO);
-		glUniformMatrix4fv(glGetUniformLocation(program.programID, "modelMat"), 1, GL_FALSE, glm::value_ptr(light.transformMatrix));
-		glDrawArrays(GL_TRIANGLES, 0, light.vertCount);
+		//glBindVertexArray(light.VAO);
+		//glUniformMatrix4fv(glGetUniformLocation(program.programID, "modelMat"), 1, GL_FALSE, glm::value_ptr(light.transformMatrix));
+		//glDrawArrays(GL_TRIANGLES, 0, light.vertCount);
 
 		glfwSwapBuffers(window);
 		glfwPollEvents();
