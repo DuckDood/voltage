@@ -10,6 +10,10 @@
 #include "shader.h"
 #include "stb_image.h"
 
+#include <imgui/imgui.h>
+#include <imgui/imgui_impl_glfw.h>
+#include <imgui/imgui_impl_opengl3.h>
+
 #define INIT_SCR_WIDTH 800
 #define INIT_SCR_HEIGHT 600
 
@@ -253,9 +257,9 @@ class Camera : public Transform {
 };
 
 struct Material {
-	GLint diffuseTex;
-	GLint specularTex;
-	// do it later
+	GLuint diffuseTex;
+	GLuint specularTex;
+	float shininess;
 };
 
 class Model : public Transform {
@@ -264,8 +268,9 @@ class Model : public Transform {
 	unsigned int VBO;
 	bool usable = false;
 	int vertCount;
+	Material mat;
 
-		Model(std::vector<float> obj) {
+		Model(std::vector<float> obj, Material material) {
 			glGenVertexArrays(1, &VAO);
 			glBindVertexArray(VAO);
 
@@ -281,6 +286,8 @@ class Model : public Transform {
 			glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(5*sizeof(float)));
 			glEnableVertexAttribArray(2);
 			vertCount = obj.size()/8;
+
+			this->mat = material;
 			usable = true;
 			
 		}
@@ -288,6 +295,7 @@ class Model : public Transform {
 			this->VAO = m->VAO;
 			this->VBO = m->VBO;
 			this->vertCount = m->vertCount;
+			this->mat = m->mat;
 			usable = true;
 		}
 	
@@ -342,6 +350,74 @@ void setSceneLights(Shader shader, std::vector<Light*> lights) {
 	}
 }
 
+void RenderModel(Model model, Shader shader) {
+		model.UpdateRotation();
+
+		glUseProgram(shader.programID);
+
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, model.mat.diffuseTex);
+		glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_2D, model.mat.specularTex);
+
+		glUniformMatrix4fv(glGetUniformLocation(shader.programID, "modelMat"), 1, GL_FALSE, glm::value_ptr(model.transformMatrix));
+		shader.setUniformFloat("material.shininess", model.mat.shininess);
+
+		shader.setUniformInt("material.diffuse", 0);
+		shader.setUniformInt("material.specular", 1);
+
+
+		glBindVertexArray(model.VAO);
+		glDrawArrays(GL_TRIANGLES, 0, model.vertCount);
+}
+
+// https://developer.mozilla.org/en-US/docs/Games/Techniques/3D_collision_detection
+// i couldve figured it out but its easier to copy just for easy comparison logic
+class boundingBox {
+	public:
+	float minX;
+	float maxX;
+
+	float minY;
+	float maxY;
+
+	float minZ;
+	float maxZ;
+  
+	glm::vec3 position = glm::vec3(0.,0.,0.);
+	glm::vec3 scale = glm::vec3(1.,1.,1.);
+
+	void Update() {
+		minX = position.x - scale.x;
+		maxX = position.x + scale.x;
+
+		minY = position.y - scale.y;
+		maxY = position.y + scale.y;
+
+		minZ = position.z - scale.z;
+		maxZ = position.z + scale.z;
+	}
+};
+bool intersect(boundingBox a, boundingBox b) {
+	return a.minX <= b.maxX && a.maxX >= b.minX && a.minY <= b.maxY && a.maxY >= b.minY && a.minZ <= b.maxZ && a.maxZ >= b.minZ;
+}
+
+float square[] = {
+	-1, -1, 0,
+	1, -1, 0,
+	-1, 1, 0,
+
+	1, -1, 0,
+	1, 1, 0,
+	-1, 1, 0
+};
+
+void key_call(GLFWwindow *win, int key, int scancode, int action, int mods) {
+	if(key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
+		*(bool*)glfwGetWindowUserPointer(win) = !*(bool*)glfwGetWindowUserPointer(win);
+	} 
+}
+
 int main() {
 	if(glfwInit() == GL_FALSE) {
 		std::cerr << "Failed to intialise GLFW\n";
@@ -369,21 +445,36 @@ int main() {
 	glViewport(0,0,INIT_SCR_WIDTH,INIT_SCR_HEIGHT);
 	glfwSetFramebufferSizeCallback(window, onWinResize);
 
+
+
+IMGUI_CHECKVERSION();
+ImGui::CreateContext();
+ImGuiIO& io = ImGui::GetIO();
+io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+ImVec4 modPosIm(0,0,0,1);
+ImVec4 modScaleIm(1,1,1,1);
+ImVec4 modRotIm(0,0,0,1);
+
+ImVec4 lightDiffColIm(1,1,1,1);
+ImVec4 lightAmbColIm(1,1,1,1);
+ImVec4 lightSpecColIm(1,1,1,1);
+
+// Setup Platform/Renderer backends
+ImGui_ImplGlfw_InitForOpenGL(window, true);          // Second param install_callback=true will install GLFW callbacks and chain to existing ones.
+ImGui_ImplOpenGL3_Init();
+bool capture = true;
+glfwSetWindowUserPointer(window, &capture);
+glfwSetKeyCallback(window, key_call);
+
+
+
+
+
 	glEnable(GL_DEPTH_TEST);
 	//glEnable(GL_CULL_FACE);
 	//glCullFace(GL_BACK);
 
-	Model model(load3dCache("cache/dragon.qucache"));
-	std::cout << "Parsing Done!\n";
-	model.position.y = -0.5*30;
-
-	Camera cam;
-
-	glm::mat4 perspective = glm::perspective(cam.fov, (float)INIT_SCR_WIDTH/(float)INIT_SCR_HEIGHT, 0.1f, 100.f);
-
-	Shader program("shaders/vertex.glsl", "shaders/fragment.glsl");
-
-	
 	int width, height, channelCount;
 	unsigned char *data = stbi_load("resources/textures/bricks.jpg", &width, &height, &channelCount, 0);
 	unsigned int texture;
@@ -395,7 +486,7 @@ int main() {
 	glGenerateMipmap(GL_TEXTURE_2D);
 	stbi_image_free(data);
 
-	data = stbi_load("resources/textures/bricks.jpg", &width, &height, &channelCount, 0);
+	data = stbi_load("resources/textures/bricks_contrast.jpg", &width, &height, &channelCount, 0);
 	unsigned int texture2;
 	glGenTextures(1, &texture2);
 
@@ -406,8 +497,24 @@ int main() {
 
 	stbi_image_free(data);
 
+	Material material;
+	material.diffuseTex = texture;
+	material.specularTex = texture2;
+	material.shininess = 32;
+	Model model(load3dCache("cache/cube.qucache"), material);
+	Model model2(model);
+	std::cout << "Parsing Done!\n";
+	model.position.y = -0.5;
+	model2.position.z = -1.5;
 
+	Camera cam;
 
+	glm::mat4 perspective = glm::perspective(cam.fov, (float)INIT_SCR_WIDTH/(float)INIT_SCR_HEIGHT, 0.1f, 100.f);
+
+	Shader program("shaders/vertex.glsl", "shaders/fragment.glsl");
+	Shader screen("shaders/screenVert.glsl", "shaders/screenFrag.glsl");
+
+	
 	std::vector<Light*> lights;
 	
 	Light sun;
@@ -430,13 +537,79 @@ int main() {
 	int winX;
 	int winY;
 
+	boundingBox bound;
+	boundingBox bound2;
+	model.scale = glm::vec3(0.8, 2, 0.7);
 	while(!glfwWindowShouldClose(window)) {
+
+
+// (Your code calls glfwPollEvents())
+// ...
+// Start the Dear ImGui frame
+ImGui_ImplOpenGL3_NewFrame();
+ImGui_ImplGlfw_NewFrame();
+ImGui::NewFrame();
+
+
+
+	if(capture) {
+		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+	} else {
+		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+	}
+
+	ImGui::Begin("Model");
+	ImGui::Text("Position");
+	ImGui::DragFloat("x##Pos", &modPosIm.x, 0.01);
+	ImGui::DragFloat("y##Pos", &modPosIm.y, 0.01);
+	ImGui::DragFloat("z##Pos", &modPosIm.z, 0.01);
+	model.position.x = modPosIm.x;
+	model.position.y = modPosIm.y;
+	model.position.z = modPosIm.z;
+
+	ImGui::Text("Scale");
+	ImGui::DragFloat("x##Scale", &modScaleIm.x, 0.01);
+	ImGui::DragFloat("y##Scale", &modScaleIm.y, 0.01);
+	ImGui::DragFloat("z##Scale", &modScaleIm.z, 0.01);
+	model.scale.x = modScaleIm.x;
+	model.scale.y = modScaleIm.y;
+	model.scale.z = modScaleIm.z;
+
+	ImGui::Text("Rotation");
+	ImGui::DragFloat("x##Rotation", &modRotIm.x, 0.003);
+	ImGui::DragFloat("y##Rotation", &modRotIm.y, 0.003);
+	ImGui::DragFloat("z##Rotation", &modRotIm.z, 0.003);
+	model.yaw = modRotIm.x;
+	model.pitch = modRotIm.y;
+	model.roll = modRotIm.z;
+	ImGui::End();
+
+	ImGui::Begin("Light");
+	ImGui::ColorPicker3("diffuse", (float*)&lightDiffColIm);
+	sun.diffuse.x = lightDiffColIm.x;
+	sun.diffuse.y = lightDiffColIm.y;
+	sun.diffuse.z = lightDiffColIm.z;
+
+	ImGui::ColorPicker3("specular", (float*)&lightSpecColIm);
+	sun.specular.x = lightSpecColIm.x;
+	sun.specular.y = lightSpecColIm.y;
+	sun.specular.z = lightSpecColIm.z;
+
+	ImGui::ColorPicker3("ambient", (float*)&lightAmbColIm);
+	sun.ambient.x = lightAmbColIm.x;
+	sun.ambient.y = lightAmbColIm.y;
+	sun.ambient.z = lightAmbColIm.z;
+
+	ImGui::End();
+
+
 		glfwGetCursorPos(window, &mouseX, &mouseY);
 		getMouseDelta(mouseX, mouseY, &mouseX, &mouseY);
 		glfwGetWindowSize(window, &winX, &winY);
 
 		glClearColor(0, 0, 0, 1);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		
 		if(glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
 			cam.position.z += cos(cam.yaw)*0.03*cos(cam.pitch);
 			cam.position.x += sin(cam.yaw)*0.03*cos(cam.pitch);
@@ -477,78 +650,72 @@ int main() {
 		if(glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {
 			model.position.z-=0.01;
 		}
-		model.yaw-=0.02;
-		model.pitch-=0.01;
 
-		cam.yaw -= mouseX/300;
-		cam.pitch -= mouseY/300;
-		model.UpdateRotation();
+		if(capture) {
+			cam.yaw -= mouseX/300;
+			cam.pitch -= mouseY/300;
+		}
+		setSceneLights(program, lights);
+
 		cam.UpdateRotation();
+
+		bound.position = model.position;
+		bound.scale = model.scale;
+
+		bound2.position = model2.position;
+		bound2.scale = model2.scale;
+
+		bound.Update();
+		bound2.Update();
+
+		if(intersect(bound, bound2)) {
+			std::cout << "int" << std::endl;
+		} else {
+			std::cout << "sep" << std::endl;
+		}
+
 		perspective = glm::perspective(cam.fov, (float)winX/(float)winY, 0.1f, 100.f);
 
+		//model.UpdateRotation();
+
 		glUseProgram(program.programID);
-		glUniformMatrix4fv(glGetUniformLocation(program.programID, "modelMat"), 1, GL_FALSE, glm::value_ptr(model.transformMatrix));
+		//glUniformMatrix4fv(glGetUniformLocation(program.programID, "modelMat"), 1, GL_FALSE, glm::value_ptr(model.transformMatrix));
 		glUniformMatrix4fv(glGetUniformLocation(program.programID, "viewMat"), 1, GL_FALSE, glm::value_ptr(cam.invTransformMatrix));
 		glUniformMatrix4fv(glGetUniformLocation(program.programID, "perspMat"), 1, GL_FALSE, glm::value_ptr(perspective));
 		glUniform3fv(glGetUniformLocation(program.programID, "viewPos"), 1, glm::value_ptr(cam.position));
 
-		program.setUniformFloat("material.shininess", 32.f);
-
-		program.setUniformInt("material.diffuse", 1);
+		/*program.setUniformFloat("material.shininess", model.mat.shininess);
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, model.mat.diffuseTex);
+		glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_2D, model.mat.specularTex);
+		program.setUniformInt("material.diffuse", 0);
 		program.setUniformInt("material.specular", 1);
-/*
-		program.setUniformInt("lightNumber", 3);
-
-		program.setUniformInt("light[0].type", 0);
-
-		program.setUniformVec3Floats("light[0].ambient", 0.2f, 0.2f, 0.2f);
-		program.setUniformVec3Floats("light[0].diffuse", 0.7f, 0.7f, 0.7f);
-		program.setUniformVec3Floats("light[0].specular", 1.f, 1.f, 1.f);
-
-		program.setUniformVec3Floats("light[0].direction", -0.0f, -0.7f, -0.3f);
-
-
-		program.setUniformFloat("light[1].constant", 1.f);
-		program.setUniformFloat("light[1].linear", 0.09f);
-		program.setUniformFloat("light[1].quadratic", 0.032f);
-
-		program.setUniformInt("light[1].type", 1);
-
-		program.setUniformVec3Floats("light[1].ambient", 0.2f, 0.2f, 0.2f);
-		program.setUniformVec3Floats("light[1].diffuse", 0.7f, 0.7f, 0.7f);
-		program.setUniformVec3Floats("light[1].specular", 1.f, 1.f, 1.f);
-
-		program.setUniformVec3Floats("light[1].position", 0.f, 0.f, 0.f);
-
-		program.setUniformFloat("light[1].cutOff", glm::cos(glm::radians(12.5f)));
-
-
-		program.setUniformFloat("light[2].constant", 1.f);
-		program.setUniformFloat("light[2].linear", 0.09f);
-		program.setUniformFloat("light[2].quadratic", 0.032f);
-
-		program.setUniformInt("light[2].type", 2);
-
-		program.setUniformVec3Floats("light[2].ambient", 0.2f, 0.2f, 0.2f);
-		program.setUniformVec3Floats("light[2].diffuse", 0.7f, 0.7f, 0.7f);
-		program.setUniformVec3Floats("light[2].specular", 1.f, 1.f, 1.f);
-
-		program.setUniformVec3Floats("light[2].position", 0.f, 1.f, 0.f);
-		program.setUniformVec3Floats("light[2].direction", -0.0f, -0.7f, -0.f);
-
-		program.setUniformFloat("light[2].cutOff", glm::cos(glm::radians(12.5f)));*/
-		setSceneLights(program, lights);
 
 
 
 		glBindVertexArray(model.VAO);
 
-		glDrawArrays(GL_TRIANGLES, 0, model.vertCount);
+		glDrawArrays(GL_TRIANGLES, 0, model.vertCount);*/
+		RenderModel(model, program);
+		RenderModel(model2, program);
 
 		
 		//glBindVertexArray(light.VAO);
 		//glUniformMatrix4fv(glGetUniformLocation(program.programID, "modelMat"), 1, GL_FALSE, glm::value_ptr(light.transformMatrix));
 		//glDrawArrays(GL_TRIANGLES, 0, light.vertCount);
+
+
+// Rendering
+// (Your code clears your framebuffer, renders your other stuff etc.)
+ImGui::Render();
+ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+// (Your code calls glfwSwapBuffers() etc.)
+
+
+
+
+
 
 		glfwSwapBuffers(window);
 		glfwPollEvents();
