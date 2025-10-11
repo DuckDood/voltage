@@ -10,9 +10,15 @@
 #include "shader.h"
 #include "stb_image.h"
 
+#ifndef USING_IMGUI
+#define USING_IMGUI 1
+#endif
+
+#if USING_IMGUI
 #include <imgui/imgui.h>
 #include <imgui/imgui_impl_glfw.h>
 #include <imgui/imgui_impl_opengl3.h>
+#endif
 
 #define INIT_SCR_WIDTH 800
 #define INIT_SCR_HEIGHT 600
@@ -69,9 +75,6 @@ class float3{
 	float3 operator+(float3 b) {
 		return float3(this->x + b.x, this->y + b.y, this->z + b.z);
 	}
-	/*void operator+=(float3 b) {
-		*this = *this + b;
-	}*/
 	float3 operator-(float3 b) {
 		return float3(this->x - b.x, this->y - b.y, this->z - b.z);
 	}
@@ -214,6 +217,53 @@ std::vector<float> load3dCache(std::string path) {
 	return value;
 }
 
+// https://developer.mozilla.org/en-US/docs/Games/Techniques/3D_collision_detection
+// i couldve figured it out but its easier to copy just for easy comparison logic
+class boundingBox {
+	public:
+	float minX;
+	float maxX;
+
+	float minY;
+	float maxY;
+
+	float minZ;
+	float maxZ;
+  
+	glm::vec3 position = glm::vec3(0.,0.,0.);
+	glm::vec3 scale = glm::vec3(1.,1.,1.);
+
+	void Update() {
+		minX = position.x - scale.x;
+		maxX = position.x + scale.x;
+
+		minY = position.y - scale.y;
+		maxY = position.y + scale.y;
+
+		minZ = position.z - scale.z;
+		maxZ = position.z + scale.z;
+	}
+};
+bool intersect(boundingBox a, boundingBox b) {
+	return a.minX <= b.maxX && a.maxX >= b.minX && a.minY <= b.maxY && a.maxY >= b.minY && a.minZ <= b.maxZ && a.maxZ >= b.minZ;
+}
+
+class Hitbox : public boundingBox {
+	public:
+		std::vector<Hitbox*> *hitboxes;
+		int id = 0;
+		bool isOverlapped() {
+			for(Hitbox *currentBox : *hitboxes) {
+				if(this->id == currentBox->id) continue;
+				if(intersect(*this, *currentBox)) {
+					return true;
+				}
+			}
+			return false;
+		}
+
+};
+
 class Transform {
 	public: 
 	float pitch = 0, yaw = 0, roll = 0;
@@ -307,6 +357,18 @@ class Model : public Transform {
 		}
 };
 
+class Object : public Model {
+	public:
+		using Model::Model;
+		Hitbox hitbox;
+
+		void UpdateHitbox() {
+			this->hitbox.scale = this->scale;
+			this->hitbox.position = this->position;
+			this->hitbox.Update();
+		}
+};
+
 void getMouseDelta(double mouseX, double mouseY, double *mouseReturnX, double *mouseReturnY) {
 	static double lastX = 0;
 	static double lastY = 0;
@@ -371,37 +433,6 @@ void RenderModel(Model model, Shader shader) {
 		glDrawArrays(GL_TRIANGLES, 0, model.vertCount);
 }
 
-// https://developer.mozilla.org/en-US/docs/Games/Techniques/3D_collision_detection
-// i couldve figured it out but its easier to copy just for easy comparison logic
-class boundingBox {
-	public:
-	float minX;
-	float maxX;
-
-	float minY;
-	float maxY;
-
-	float minZ;
-	float maxZ;
-  
-	glm::vec3 position = glm::vec3(0.,0.,0.);
-	glm::vec3 scale = glm::vec3(1.,1.,1.);
-
-	void Update() {
-		minX = position.x - scale.x;
-		maxX = position.x + scale.x;
-
-		minY = position.y - scale.y;
-		maxY = position.y + scale.y;
-
-		minZ = position.z - scale.z;
-		maxZ = position.z + scale.z;
-	}
-};
-bool intersect(boundingBox a, boundingBox b) {
-	return a.minX <= b.maxX && a.maxX >= b.minX && a.minY <= b.maxY && a.maxY >= b.minY && a.minZ <= b.maxZ && a.maxZ >= b.minZ;
-}
-
 float square[] = {
 	-1, -1, 0,
 	1, -1, 0,
@@ -417,6 +448,29 @@ void key_call(GLFWwindow *win, int key, int scancode, int action, int mods) {
 		*(bool*)glfwGetWindowUserPointer(win) = !*(bool*)glfwGetWindowUserPointer(win);
 	} 
 }
+
+#if USING_IMGUI
+void Model_ImGui_Window(Model *model, std::string label) {
+	ImGui::Begin(label.c_str());
+	ImGui::Text("Position");
+	ImGui::DragFloat(("x##Pos##" + label).c_str(), &model->position.x, 0.01);
+	ImGui::DragFloat(("y##Pos##" + label).c_str(), &model->position.y, 0.01);
+	ImGui::DragFloat(("z##Pos##" + label).c_str(), &model->position.z, 0.01);
+	ImGui::Text("Scale");
+	ImGui::DragFloat(("x##Scale##" + label).c_str(), &model->scale.x, 0.01);
+	ImGui::DragFloat(("y##Scale##" + label).c_str(), &model->scale.y, 0.01);
+	ImGui::DragFloat(("z##Scale##" + label).c_str(), &model->scale.z, 0.01);
+
+	ImGui::Text("Rotation");
+	ImGui::DragFloat(("x##Rotation" + label).c_str(), &model->yaw, 0.003);
+	ImGui::DragFloat(("y##Rotation" + label).c_str(), &model->pitch, 0.003);
+	ImGui::DragFloat(("z##Rotation" + label).c_str(), &model->roll, 0.003);
+
+	ImGui::Text("Material");
+	ImGui::DragFloat(("Shininess##" + label).c_str(), &model->mat.shininess, 1);
+	ImGui::End();
+}
+#endif
 
 int main() {
 	if(glfwInit() == GL_FALSE) {
@@ -444,36 +498,24 @@ int main() {
 	//glfwSwapInterval(0);
 	glViewport(0,0,INIT_SCR_WIDTH,INIT_SCR_HEIGHT);
 	glfwSetFramebufferSizeCallback(window, onWinResize);
+	bool capture = true;
+	glfwSetKeyCallback(window, key_call);
+	glfwSetWindowUserPointer(window, &capture);
 
-
-
-IMGUI_CHECKVERSION();
-ImGui::CreateContext();
-ImGuiIO& io = ImGui::GetIO();
-io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
-io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
-ImVec4 modPosIm(0,0,0,1);
-ImVec4 modScaleIm(1,1,1,1);
-ImVec4 modRotIm(0,0,0,1);
-
-ImVec4 lightDiffColIm(1,1,1,1);
-ImVec4 lightAmbColIm(1,1,1,1);
-ImVec4 lightSpecColIm(1,1,1,1);
-
-// Setup Platform/Renderer backends
-ImGui_ImplGlfw_InitForOpenGL(window, true);          // Second param install_callback=true will install GLFW callbacks and chain to existing ones.
-ImGui_ImplOpenGL3_Init();
-bool capture = true;
-glfwSetWindowUserPointer(window, &capture);
-glfwSetKeyCallback(window, key_call);
-
-
-
+	#if USING_IMGUI
+	IMGUI_CHECKVERSION();
+	ImGui::CreateContext();
+	ImGuiIO& io = ImGui::GetIO();
+	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+	io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+	
+	// Setup Platform/Renderer backends
+	ImGui_ImplGlfw_InitForOpenGL(window, true);          // Second param install_callback=true will install GLFW callbacks and chain to existing ones.
+	ImGui_ImplOpenGL3_Init();
+	#endif
 
 
 	glEnable(GL_DEPTH_TEST);
-	//glEnable(GL_CULL_FACE);
-	//glCullFace(GL_BACK);
 
 	int width, height, channelCount;
 	unsigned char *data = stbi_load("resources/textures/bricks.jpg", &width, &height, &channelCount, 0);
@@ -497,15 +539,25 @@ glfwSetKeyCallback(window, key_call);
 
 	stbi_image_free(data);
 
+	std::vector<Hitbox*> hitboxes;
+
 	Material material;
 	material.diffuseTex = texture;
 	material.specularTex = texture2;
 	material.shininess = 32;
-	Model model(load3dCache("cache/cube.qucache"), material);
-	Model model2(model);
+	Object model(load3dCache("cache/cube.qucache"), material);
+	Object floor(&model);
+	hitboxes.push_back(&model.hitbox);
+	hitboxes.push_back(&floor.hitbox);
+	model.hitbox.hitboxes = &hitboxes;
+	floor.hitbox.hitboxes = &hitboxes;
 	std::cout << "Parsing Done!\n";
 	model.position.y = -0.5;
-	model2.position.z = -1.5;
+	model.position.z = -2;
+	floor.position.y = -2;
+	floor.scale.x = 100;
+	floor.scale.x = 100;
+	floor.scale.z = 100;
 
 	Camera cam;
 
@@ -513,6 +565,12 @@ glfwSetKeyCallback(window, key_call);
 
 	Shader program("shaders/vertex.glsl", "shaders/fragment.glsl");
 	Shader screen("shaders/screenVert.glsl", "shaders/screenFrag.glsl");
+
+	Hitbox cameraBound;
+	cameraBound.id = 1;
+	hitboxes.push_back(&cameraBound);
+	cameraBound.hitboxes = &hitboxes;
+	cameraBound.scale = glm::vec3(0.2,0.35,0.2);
 
 	
 	std::vector<Light*> lights;
@@ -537,98 +595,113 @@ glfwSetKeyCallback(window, key_call);
 	int winX;
 	int winY;
 
-	boundingBox bound;
-	boundingBox bound2;
-	model.scale = glm::vec3(0.8, 2, 0.7);
+	glm::vec3 velocity(0,0,0);
 	while(!glfwWindowShouldClose(window)) {
+		#if USING_IMGUI
+		ImGui_ImplOpenGL3_NewFrame();
+		ImGui_ImplGlfw_NewFrame();
+		ImGui::NewFrame();
+		#endif
+		if(capture) {
+			glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+		} else {
+			glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+		}
 
-
-// (Your code calls glfwPollEvents())
-// ...
-// Start the Dear ImGui frame
-ImGui_ImplOpenGL3_NewFrame();
-ImGui_ImplGlfw_NewFrame();
-ImGui::NewFrame();
-
-
-
-	if(capture) {
-		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-	} else {
-		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-	}
-
-	ImGui::Begin("Model");
-	ImGui::Text("Position");
-	ImGui::DragFloat("x##Pos", &modPosIm.x, 0.01);
-	ImGui::DragFloat("y##Pos", &modPosIm.y, 0.01);
-	ImGui::DragFloat("z##Pos", &modPosIm.z, 0.01);
-	model.position.x = modPosIm.x;
-	model.position.y = modPosIm.y;
-	model.position.z = modPosIm.z;
-
-	ImGui::Text("Scale");
-	ImGui::DragFloat("x##Scale", &modScaleIm.x, 0.01);
-	ImGui::DragFloat("y##Scale", &modScaleIm.y, 0.01);
-	ImGui::DragFloat("z##Scale", &modScaleIm.z, 0.01);
-	model.scale.x = modScaleIm.x;
-	model.scale.y = modScaleIm.y;
-	model.scale.z = modScaleIm.z;
-
-	ImGui::Text("Rotation");
-	ImGui::DragFloat("x##Rotation", &modRotIm.x, 0.003);
-	ImGui::DragFloat("y##Rotation", &modRotIm.y, 0.003);
-	ImGui::DragFloat("z##Rotation", &modRotIm.z, 0.003);
-	model.yaw = modRotIm.x;
-	model.pitch = modRotIm.y;
-	model.roll = modRotIm.z;
-	ImGui::End();
-
-	ImGui::Begin("Light");
-	ImGui::ColorPicker3("diffuse", (float*)&lightDiffColIm);
-	sun.diffuse.x = lightDiffColIm.x;
-	sun.diffuse.y = lightDiffColIm.y;
-	sun.diffuse.z = lightDiffColIm.z;
-
-	ImGui::ColorPicker3("specular", (float*)&lightSpecColIm);
-	sun.specular.x = lightSpecColIm.x;
-	sun.specular.y = lightSpecColIm.y;
-	sun.specular.z = lightSpecColIm.z;
-
-	ImGui::ColorPicker3("ambient", (float*)&lightAmbColIm);
-	sun.ambient.x = lightAmbColIm.x;
-	sun.ambient.y = lightAmbColIm.y;
-	sun.ambient.z = lightAmbColIm.z;
-
-	ImGui::End();
+		#if USING_IMGUI
+		Model_ImGui_Window(&model, "Model");
+		Model_ImGui_Window(&floor, "Model2");
+	
+		ImGui::Begin("Light");
+		ImGui::ColorPicker3("diffuse", glm::value_ptr(sun.diffuse));
+		ImGui::ColorPicker3("specular", glm::value_ptr(sun.specular));
+		ImGui::ColorPicker3("ambient", glm::value_ptr(sun.ambient));
+		ImGui::DragFloat3("position", glm::value_ptr(sun.position));
+		ImGui::End();
+		#endif
 
 
 		glfwGetCursorPos(window, &mouseX, &mouseY);
 		getMouseDelta(mouseX, mouseY, &mouseX, &mouseY);
 		glfwGetWindowSize(window, &winX, &winY);
 
+		glUseProgram(program.programID);
 		glClearColor(0, 0, 0, 1);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
 		
 		if(glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
-			cam.position.z += cos(cam.yaw)*0.03*cos(cam.pitch);
-			cam.position.x += sin(cam.yaw)*0.03*cos(cam.pitch);
+			//velocity.z += cos(cam.yaw)*0.03*cos(cam.pitch);
+			//velocity.x += sin(cam.yaw)*0.03*cos(cam.pitch);
 
-			cam.position.y -= sin(cam.pitch)*0.03;
+			//velocity.y -= sin(cam.pitch)*0.03;
+			
+			velocity.z += cos(cam.yaw)*0.03;
+			velocity.x += sin(cam.yaw)*0.03;
 		}
 		if(glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
-			cam.position.z -= cos(cam.yaw)*0.03*cos(cam.pitch);
-			cam.position.x -= sin(cam.yaw)*0.03*cos(cam.pitch);
+			//velocity.z -= cos(cam.yaw)*0.03*cos(cam.pitch);
+			//velocity.x -= sin(cam.yaw)*0.03*cos(cam.pitch);
 
-			cam.position.y += sin(cam.pitch)*0.03;
+			//velocity.y += sin(cam.pitch)*0.03;
+			
+			velocity.z -= cos(cam.yaw)*0.03;
+			velocity.x -= sin(cam.yaw)*0.03;
 		}
 		if(glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-			cam.position.z += sin(cam.yaw)*0.02;
-			cam.position.x -= cos(cam.yaw)*0.02;
+			velocity.z += sin(cam.yaw)*0.02;
+			velocity.x -= cos(cam.yaw)*0.02;
 		}
 		if(glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-			cam.position.z -= sin(cam.yaw)*0.02;
-			cam.position.x += cos(cam.yaw)*0.02;
+			velocity.z -= sin(cam.yaw)*0.02;
+			velocity.x += cos(cam.yaw)*0.02;
+		}
+		velocity.y -= 0.006;
+
+		cam.position.x += velocity.x;
+		cameraBound.position = cam.position;
+		cameraBound.Update();
+		if(cameraBound.isOverlapped()) {
+			cam.position.x -= velocity.x;	
+			velocity.x = 0;
+		}
+		cameraBound.position = cam.position;
+
+
+		cam.position.y += velocity.y;
+		cameraBound.position = cam.position;
+		cameraBound.Update();
+		if(cameraBound.isOverlapped()) {
+			cam.position.y -= velocity.y;	
+			velocity.y = 0;
+		}
+		cameraBound.position = cam.position;
+
+		cam.position.z += velocity.z;
+		cameraBound.position = cam.position;
+		cameraBound.Update();
+		if(cameraBound.isOverlapped()) {
+			cam.position.z -= velocity.z;	
+			velocity.z = 0;
+		}
+		cameraBound.position = cam.position;
+
+		velocity.x *= 0.7;
+		velocity.z *= 0.7;
+		if(velocity.y < -0.5) {
+			velocity.y = -0.5;
+		}
+
+		Hitbox cameraFloorBound = cameraBound;
+		cameraFloorBound.scale.z *= 0.9;
+		cameraFloorBound.scale.x *= 0.9;
+		cameraFloorBound.position.y -=0.01;
+		cameraFloorBound.Update();
+		if(cameraFloorBound.isOverlapped()) {
+			if(glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
+				velocity.y = 0.1;
+				std::cout << "hi" << std::endl;
+			}
 		}
 
 		if(glfwGetKey(window, GLFW_KEY_COMMA) == GLFW_PRESS) {
@@ -638,84 +711,32 @@ ImGui::NewFrame();
 			cam.fov -= glm::radians(1.);
 		}
 
-		if(glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
-			model.position.y+=0.01;
-		}
-		if(glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
-			model.position.y-=0.01;
-		}
-		if(glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
-			model.position.z+=0.01;
-		}
-		if(glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {
-			model.position.z-=0.01;
-		}
-
 		if(capture) {
 			cam.yaw -= mouseX/300;
 			cam.pitch -= mouseY/300;
 		}
+		if(cam.pitch > 1.5708) cam.pitch = 1.5708;
+		if(cam.pitch < -1.5708) cam.pitch = -1.5708;
 		setSceneLights(program, lights);
 
 		cam.UpdateRotation();
 
-		bound.position = model.position;
-		bound.scale = model.scale;
-
-		bound2.position = model2.position;
-		bound2.scale = model2.scale;
-
-		bound.Update();
-		bound2.Update();
-
-		if(intersect(bound, bound2)) {
-			std::cout << "int" << std::endl;
-		} else {
-			std::cout << "sep" << std::endl;
-		}
+		model.UpdateHitbox();
+		floor.UpdateHitbox();
 
 		perspective = glm::perspective(cam.fov, (float)winX/(float)winY, 0.1f, 100.f);
 
-		//model.UpdateRotation();
-
-		glUseProgram(program.programID);
-		//glUniformMatrix4fv(glGetUniformLocation(program.programID, "modelMat"), 1, GL_FALSE, glm::value_ptr(model.transformMatrix));
 		glUniformMatrix4fv(glGetUniformLocation(program.programID, "viewMat"), 1, GL_FALSE, glm::value_ptr(cam.invTransformMatrix));
 		glUniformMatrix4fv(glGetUniformLocation(program.programID, "perspMat"), 1, GL_FALSE, glm::value_ptr(perspective));
 		glUniform3fv(glGetUniformLocation(program.programID, "viewPos"), 1, glm::value_ptr(cam.position));
 
-		/*program.setUniformFloat("material.shininess", model.mat.shininess);
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, model.mat.diffuseTex);
-		glActiveTexture(GL_TEXTURE1);
-		glBindTexture(GL_TEXTURE_2D, model.mat.specularTex);
-		program.setUniformInt("material.diffuse", 0);
-		program.setUniformInt("material.specular", 1);
-
-
-
-		glBindVertexArray(model.VAO);
-
-		glDrawArrays(GL_TRIANGLES, 0, model.vertCount);*/
 		RenderModel(model, program);
-		RenderModel(model2, program);
+		RenderModel(floor, program);
 
-		
-		//glBindVertexArray(light.VAO);
-		//glUniformMatrix4fv(glGetUniformLocation(program.programID, "modelMat"), 1, GL_FALSE, glm::value_ptr(light.transformMatrix));
-		//glDrawArrays(GL_TRIANGLES, 0, light.vertCount);
-
-
-// Rendering
-// (Your code clears your framebuffer, renders your other stuff etc.)
-ImGui::Render();
-ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-// (Your code calls glfwSwapBuffers() etc.)
-
-
-
-
-
+		#if USING_IMGUI	
+		ImGui::Render();
+		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+		#endif
 
 		glfwSwapBuffers(window);
 		glfwPollEvents();
