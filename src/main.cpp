@@ -11,7 +11,7 @@
 #include "stb_image.h"
 
 #ifndef USING_IMGUI
-#define USING_IMGUI 1
+#define USING_IMGUI 0
 #endif
 
 #if USING_IMGUI
@@ -318,6 +318,7 @@ class Model : public Transform {
 	unsigned int VBO;
 	bool usable = false;
 	int vertCount;
+	int cullType = 0;
 	Material mat;
 
 		Model(std::vector<float> obj, Material material) {
@@ -414,6 +415,19 @@ void setSceneLights(Shader shader, std::vector<Light*> lights) {
 
 void RenderModel(Model model, Shader shader) {
 		model.UpdateRotation();
+		switch(model.cullType) {
+			case 0:
+				glDisable(GL_CULL_FACE);
+				break;
+			case 1:
+				glEnable(GL_CULL_FACE);
+				glCullFace(GL_BACK);
+				break;
+			case 2:
+				glEnable(GL_CULL_FACE);
+				glCullFace(GL_FRONT);
+				break;
+		}
 
 		glUseProgram(shader.programID);
 
