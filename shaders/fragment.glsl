@@ -2,6 +2,7 @@
 
 struct Material {
 	float shininess;
+	bool useLighting;
 	sampler2D diffuse;
 	sampler2D specular;
 };
@@ -159,18 +160,22 @@ uniform int lightNumber;
 
 void main() {
 	vec3 result = vec3(0.,0.,0.);
-	for(int i = 0; i < lightNumber; i++) {
-		switch(light[i].type) {
-			case 0:
-			result += resolveDirectionalLight(light[i], material, texCoord, normal);
-			break;
-			case 1:
-			result += resolvePointLight(light[i], material, texCoord, normal);
-			break;
-			case 2:
-			result += resolveSpotlight(light[i], material, texCoord, normal);
-			break;
+	if(material.useLighting) {
+		for(int i = 0; i < lightNumber; i++) {
+			switch(light[i].type) {
+				case 0:
+				result += resolveDirectionalLight(light[i], material, texCoord, normal);
+				break;
+				case 1:
+				result += resolvePointLight(light[i], material, texCoord, normal);
+				break;
+				case 2:
+				result += resolveSpotlight(light[i], material, texCoord, normal);
+				break;
+			}
 		}
+	} else {
+		result = vec3(texture(material.diffuse, texCoord));
 	}
 	FragColor = vec4(result, 1.0);
 }

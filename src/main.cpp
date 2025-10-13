@@ -11,7 +11,7 @@
 #include "stb_image.h"
 
 #ifndef USING_IMGUI
-#define USING_IMGUI 0
+#define USING_IMGUI 1
 #endif
 
 #if USING_IMGUI
@@ -310,6 +310,7 @@ struct Material {
 	GLuint diffuseTex;
 	GLuint specularTex;
 	float shininess;
+	bool useLighting = 1;
 };
 
 class Model : public Transform {
@@ -439,6 +440,8 @@ void RenderModel(Model model, Shader shader) {
 		glUniformMatrix4fv(glGetUniformLocation(shader.programID, "modelMat"), 1, GL_FALSE, glm::value_ptr(model.transformMatrix));
 		shader.setUniformFloat("material.shininess", model.mat.shininess);
 
+		shader.setUniformInt("material.useLighting", model.mat.useLighting);
+
 		shader.setUniformInt("material.diffuse", 0);
 		shader.setUniformInt("material.specular", 1);
 
@@ -482,6 +485,7 @@ void Model_ImGui_Window(Model *model, std::string label) {
 
 	ImGui::Text("Material");
 	ImGui::DragFloat(("Shininess##" + label).c_str(), &model->mat.shininess, 1);
+	ImGui::Checkbox(("Use Lighting##" + label).c_str(), &model->mat.useLighting);
 	ImGui::End();
 }
 #endif
@@ -509,7 +513,7 @@ int main() {
 		glfwTerminate();
 		return 1;
 	}
-	//glfwSwapInterval(0);
+	glfwSwapInterval(0);
 	glViewport(0,0,INIT_SCR_WIDTH,INIT_SCR_HEIGHT);
 	glfwSetFramebufferSizeCallback(window, onWinResize);
 	bool capture = true;
@@ -553,13 +557,33 @@ int main() {
 
 	stbi_image_free(data);
 
+
+	data = stbi_load("resources/textures/sky.bmp", &width, &height, &channelCount, 4);
+	unsigned int skyTex;
+	glGenTextures(1, &skyTex);
+
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, skyTex);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+	glGenerateMipmap(GL_TEXTURE_2D);
+
+	stbi_image_free(data);
+
+
 	std::vector<Hitbox*> hitboxes;
 
 	Material material;
 	material.diffuseTex = texture;
 	material.specularTex = texture2;
 	material.shininess = 32;
-	Object model(load3dCache("cache/cube.qucache"), material);
+	Object model(load3dCache("resources/cache/cube.vtcache"), material);
+
+	Material skyMat;
+	skyMat.diffuseTex = skyTex;
+	skyMat.specularTex = skyTex;
+	skyMat.shininess = 0;
+	skyMat.useLighting = 0;
+	Model sky(load3dCache("resources/cache/sky.vtcache"), skyMat);
 	Object floor(&model);
 	hitboxes.push_back(&model.hitbox);
 	hitboxes.push_back(&floor.hitbox);
@@ -610,7 +634,20 @@ int main() {
 	int winY;
 
 	glm::vec3 velocity(0,0,0);
+
+	double prevTime = glfwGetTime();
+	int frameCount = 0;
 	while(!glfwWindowShouldClose(window)) {
+		double currentTime = glfwGetTime();
+		frameCount++;
+		if((currentTime - prevTime) >= 1) {
+			std::cout << frameCount << std::endl;
+			frameCount = 0;
+			prevTime = currentTime;
+		}
+		
+
+
 		#if USING_IMGUI
 		ImGui_ImplOpenGL3_NewFrame();
 		ImGui_ImplGlfw_NewFrame();
@@ -625,12 +662,15 @@ int main() {
 		#if USING_IMGUI
 		Model_ImGui_Window(&model, "Model");
 		Model_ImGui_Window(&floor, "Model2");
+		Model_ImGui_Window(&sky, "sky");
 	
 		ImGui::Begin("Light");
 		ImGui::ColorPicker3("diffuse", glm::value_ptr(sun.diffuse));
 		ImGui::ColorPicker3("specular", glm::value_ptr(sun.specular));
 		ImGui::ColorPicker3("ambient", glm::value_ptr(sun.ambient));
 		ImGui::DragFloat3("position", glm::value_ptr(sun.position));
+		ImGui::DragFloat3("direction", glm::value_ptr(sun.direction));
+		ImGui::DragInt("type", &sun.type);
 		ImGui::End();
 		#endif
 
@@ -709,12 +749,11 @@ int main() {
 		Hitbox cameraFloorBound = cameraBound;
 		cameraFloorBound.scale.z *= 0.9;
 		cameraFloorBound.scale.x *= 0.9;
-		cameraFloorBound.position.y -=0.01;
+		cameraFloorBound.position.y -=0.1;
 		cameraFloorBound.Update();
 		if(cameraFloorBound.isOverlapped()) {
 			if(glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
 				velocity.y = 0.1;
-				std::cout << "hi" << std::endl;
 			}
 		}
 
@@ -746,6 +785,7 @@ int main() {
 
 		RenderModel(model, program);
 		RenderModel(floor, program);
+		RenderModel(sky, program);
 
 		#if USING_IMGUI	
 		ImGui::Render();
