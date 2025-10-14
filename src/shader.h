@@ -63,6 +63,14 @@ class Shader {
 	void setUniformVec3Floats(const char* uniformName, float x, float y, float z) {
 		glUniform3fv(glGetUniformLocation(this->programID, uniformName), 1, glm::value_ptr(glm::vec3(x,y,z)));
 	}
+
+	void setUniformVec4(const char* uniformName, glm::vec4 value) {
+		glUniform4fv(glGetUniformLocation(this->programID, uniformName), 1, glm::value_ptr(value));
+	}
+	void setUniformVec4Floats(const char* uniformName, float x, float y, float z, float w) {
+		glUniform4fv(glGetUniformLocation(this->programID, uniformName), 1, glm::value_ptr(glm::vec4(x,y,z, w)));
+	}
+
 	void setUniformInt(const char* uniformName, int x) {
 		glUniform1i(glGetUniformLocation(this->programID, uniformName), x);
 	}

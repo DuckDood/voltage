@@ -311,6 +311,13 @@ struct Material {
 	GLuint specularTex;
 	float shininess;
 	bool useLighting = 1;
+
+	// prating i dont forget to add these later and not even religious
+	glm::vec4 specularColor = glm::vec4(1., 1., 1., 1.);
+	glm::vec4 diffuseColor = glm::vec4(1., 1., 1., 1.);
+	
+	bool useDiffuseTex = 1;
+	bool useSpecularTex = 1;
 };
 
 class Model : public Transform {
@@ -393,7 +400,8 @@ struct Light {
 	float linear;
 	float quadratic;
 
-	float cutOff;
+	float innerCutOff;
+	float outerCutOff;
 
 	int type;
 };
@@ -410,7 +418,8 @@ void setSceneLights(Shader shader, std::vector<Light*> lights) {
 		shader.setUniformVec3(("light["+std::to_string(i)+"].specular").c_str(), lights.at(i)->specular);
 		shader.setUniformVec3(("light["+std::to_string(i)+"].position").c_str(), lights.at(i)->position);
 		shader.setUniformVec3(("light["+std::to_string(i)+"].direction").c_str(), lights.at(i)->direction);
-		shader.setUniformFloat(("light["+std::to_string(i)+"].cutOff").c_str(), lights.at(i)->cutOff);
+		shader.setUniformFloat(("light["+std::to_string(i)+"].innerCutOff").c_str(), lights.at(i)->innerCutOff);
+		shader.setUniformFloat(("light["+std::to_string(i)+"].outerCutOff").c_str(), lights.at(i)->outerCutOff);
 	}
 }
 
@@ -441,6 +450,12 @@ void RenderModel(Model model, Shader shader) {
 		shader.setUniformFloat("material.shininess", model.mat.shininess);
 
 		shader.setUniformInt("material.useLighting", model.mat.useLighting);
+
+		shader.setUniformInt("material.useDiffuseTex", model.mat.useDiffuseTex);
+		shader.setUniformInt("material.useSpecularTex", model.mat.useSpecularTex);
+
+		shader.setUniformVec4("material.diffuseColor", model.mat.diffuseColor);
+		shader.setUniformVec4("material.specularColor", model.mat.specularColor);
 
 		shader.setUniformInt("material.diffuse", 0);
 		shader.setUniformInt("material.specular", 1);
@@ -484,8 +499,14 @@ void Model_ImGui_Window(Model *model, std::string label) {
 	ImGui::DragFloat(("z##Rotation" + label).c_str(), &model->roll, 0.003);
 
 	ImGui::Text("Material");
+
+	ImGui::ColorPicker4(("diffuseColor##" + label).c_str(), glm::value_ptr(model->mat.diffuseColor));
+	ImGui::ColorPicker4(("specularColor##" + label).c_str(), glm::value_ptr(model->mat.specularColor));
+
 	ImGui::DragFloat(("Shininess##" + label).c_str(), &model->mat.shininess, 1);
 	ImGui::Checkbox(("Use Lighting##" + label).c_str(), &model->mat.useLighting);
+	ImGui::Checkbox(("Use DiffuseTex##" + label).c_str(), &model->mat.useDiffuseTex);
+	ImGui::Checkbox(("Use SpecTex##" + label).c_str(), &model->mat.useSpecularTex);
 	ImGui::End();
 }
 #endif
@@ -513,7 +534,7 @@ int main() {
 		glfwTerminate();
 		return 1;
 	}
-	glfwSwapInterval(0);
+	//glfwSwapInterval(0);
 	glViewport(0,0,INIT_SCR_WIDTH,INIT_SCR_HEIGHT);
 	glfwSetFramebufferSizeCallback(window, onWinResize);
 	bool capture = true;
@@ -534,6 +555,8 @@ int main() {
 
 
 	glEnable(GL_DEPTH_TEST);
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 	int width, height, channelCount;
 	unsigned char *data = stbi_load("resources/textures/bricks.jpg", &width, &height, &channelCount, 0);
@@ -558,18 +581,6 @@ int main() {
 	stbi_image_free(data);
 
 
-	data = stbi_load("resources/textures/sky.bmp", &width, &height, &channelCount, 4);
-	unsigned int skyTex;
-	glGenTextures(1, &skyTex);
-
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, skyTex);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-	glGenerateMipmap(GL_TEXTURE_2D);
-
-	stbi_image_free(data);
-
-
 	std::vector<Hitbox*> hitboxes;
 
 	Material material;
@@ -577,21 +588,16 @@ int main() {
 	material.specularTex = texture2;
 	material.shininess = 32;
 	Object model(load3dCache("resources/cache/cube.vtcache"), material);
+	model.position.z = -2;
+	model.position.y = -1.8;
 
-	Material skyMat;
-	skyMat.diffuseTex = skyTex;
-	skyMat.specularTex = skyTex;
-	skyMat.shininess = 0;
-	skyMat.useLighting = 0;
-	Model sky(load3dCache("resources/cache/sky.vtcache"), skyMat);
 	Object floor(&model);
 	hitboxes.push_back(&model.hitbox);
 	hitboxes.push_back(&floor.hitbox);
+
 	model.hitbox.hitboxes = &hitboxes;
 	floor.hitbox.hitboxes = &hitboxes;
-	std::cout << "Parsing Done!\n";
-	model.position.y = -0.5;
-	model.position.z = -2;
+
 	floor.position.y = -2;
 	floor.scale.x = 100;
 	floor.scale.x = 100;
@@ -613,18 +619,26 @@ int main() {
 	
 	std::vector<Light*> lights;
 	
+	Light light;
+	light.type = 1;
+	light.ambient = glm::vec3(0.2,0.2,0.2);
+	light.diffuse = glm::vec3(1.5, 1.5 ,1.5);
+	light.specular = glm::vec3(1.f, 1.f, 1.f);
+	light.position = glm::vec3(0.f, 1.f, 0.3f);
+	light.direction = glm::vec3(0.f, 1.f, 0.0f);
+	light.constant = 1.f;
+	light.linear = 0.09f;
+	light.quadratic = 0.032f;
+	light.innerCutOff = glm::cos(glm::radians(12.5f));
+	light.outerCutOff = glm::cos(glm::radians(12.5f));
 	Light sun;
-	sun.type = 1;
-	sun.ambient = glm::vec3(0.2,0.2,0.2);
-	sun.diffuse = glm::vec3(1.5, 1.5 ,1.5);
-	sun.specular = glm::vec3(1.f, 1.f, 1.f);
-	sun.position = glm::vec3(0.f, 1.f, 0.3f);
+	sun.type = 0;
+	sun.ambient = glm::vec3(0.0,0.0,0.0);
+	sun.diffuse = glm::vec3(0.2, 0.2 ,0.2);
+	sun.specular = glm::vec3(0.4f, 0.4f, 0.4f);
 	sun.direction = glm::vec3(0.f, 1.f, 0.0f);
-	sun.constant = 1.f;
-	sun.linear = 0.09f;
-	sun.quadratic = 0.032f;
-	sun.cutOff = glm::cos(glm::radians(12.5f));
 	
+	lights.push_back(&light);
 	lights.push_back(&sun);
 
 	double mouseX;
@@ -662,15 +676,29 @@ int main() {
 		#if USING_IMGUI
 		Model_ImGui_Window(&model, "Model");
 		Model_ImGui_Window(&floor, "Model2");
-		Model_ImGui_Window(&sky, "sky");
 	
 		ImGui::Begin("Light");
-		ImGui::ColorPicker3("diffuse", glm::value_ptr(sun.diffuse));
-		ImGui::ColorPicker3("specular", glm::value_ptr(sun.specular));
-		ImGui::ColorPicker3("ambient", glm::value_ptr(sun.ambient));
-		ImGui::DragFloat3("position", glm::value_ptr(sun.position));
-		ImGui::DragFloat3("direction", glm::value_ptr(sun.direction));
-		ImGui::DragInt("type", &sun.type);
+		ImGui::ColorPicker3("diffuse", glm::value_ptr(light.diffuse));
+		ImGui::ColorPicker3("specular", glm::value_ptr(light.specular));
+		ImGui::ColorPicker3("ambient", glm::value_ptr(light.ambient));
+		ImGui::DragFloat3("position", glm::value_ptr(light.position), 0.05);
+		ImGui::DragFloat3("direction", glm::value_ptr(light.direction), 0.05);
+
+		ImGui::DragFloat("incutoff", &light.innerCutOff, 0.01);
+		ImGui::DragFloat("outcutoff", &light.outerCutOff, 0.01);
+
+		ImGui::Text("Attenuation");
+		ImGui::DragFloat("constant", &light.constant, 0.01);
+		ImGui::DragFloat("linear", &light.linear, 0.01);
+		ImGui::DragFloat("quadratic", &light.quadratic, 0.01);
+
+		ImGui::Text("Type");
+		ImGui::RadioButton("directional", &light.type, 0);
+		ImGui::SameLine();
+		ImGui::RadioButton("point", &light.type, 1);
+		ImGui::SameLine();
+		ImGui::RadioButton("spotlight", &light.type, 2);
+
 		ImGui::End();
 		#endif
 
@@ -770,7 +798,9 @@ int main() {
 		}
 		if(cam.pitch > 1.5708) cam.pitch = 1.5708;
 		if(cam.pitch < -1.5708) cam.pitch = -1.5708;
+
 		setSceneLights(program, lights);
+
 
 		cam.UpdateRotation();
 
@@ -785,7 +815,6 @@ int main() {
 
 		RenderModel(model, program);
 		RenderModel(floor, program);
-		RenderModel(sky, program);
 
 		#if USING_IMGUI	
 		ImGui::Render();
