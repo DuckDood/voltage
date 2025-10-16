@@ -312,12 +312,18 @@ struct Material {
 	float shininess;
 	bool useLighting = 1;
 
-	// prating i dont forget to add these later and not even religious
+	// praying i dont forget to add these later and not even religious
+	// i didnt forget to add them later :33
 	glm::vec4 specularColor = glm::vec4(1., 1., 1., 1.);
 	glm::vec4 diffuseColor = glm::vec4(1., 1., 1., 1.);
 	
 	bool useDiffuseTex = 1;
 	bool useSpecularTex = 1;
+};
+enum CULL {
+	NONE = 0,
+	BACK = 1,
+	FRONT = 2,
 };
 
 class Model : public Transform {
@@ -590,6 +596,7 @@ int main() {
 	Object model(load3dCache("resources/cache/cube.vtcache"), material);
 	model.position.z = -2;
 	model.position.y = -1.8;
+	model.cullType = BACK;
 
 	Object floor(&model);
 	hitboxes.push_back(&model.hitbox);
@@ -639,7 +646,7 @@ int main() {
 	sun.direction = glm::vec3(0.f, 1.f, 0.0f);
 	
 	lights.push_back(&light);
-	lights.push_back(&sun);
+	//lights.push_back(&sun);
 
 	double mouseX;
 	double mouseY;
@@ -813,8 +820,8 @@ int main() {
 		glUniformMatrix4fv(glGetUniformLocation(program.programID, "perspMat"), 1, GL_FALSE, glm::value_ptr(perspective));
 		glUniform3fv(glGetUniformLocation(program.programID, "viewPos"), 1, glm::value_ptr(cam.position));
 
-		RenderModel(model, program);
 		RenderModel(floor, program);
+		RenderModel(model, program);
 
 		#if USING_IMGUI	
 		ImGui::Render();
