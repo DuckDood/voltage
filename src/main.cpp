@@ -20,6 +20,10 @@
 #include <imgui/imgui_impl_opengl3.h>
 #endif
 
+#ifndef HITBOX_VIEW
+#define HITBOX_VIEW 0
+#endif
+
 #define INIT_SCR_WIDTH 800
 #define INIT_SCR_HEIGHT 600
 
@@ -263,6 +267,78 @@ class Hitbox : public boundingBox {
 		}
 
 };
+
+#if HITBOX_VIEW
+class HitboxRenderer {
+	public:
+	unsigned int VAO;
+	unsigned int VBO;
+	unsigned int EBO;
+	Hitbox* hit;
+	HitboxRenderer() {
+		glGenVertexArrays(1, &VAO);
+		glBindVertexArray(VAO);
+		glGenBuffers(1, &VBO);
+		glGenBuffers(1, &EBO);
+
+		glBindBuffer(GL_ARRAY_BUFFER, VBO);
+		glBufferData(GL_ARRAY_BUFFER, 8 * 3 * sizeof(float), NULL, GL_DYNAMIC_DRAW);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)(0));
+		glEnableVertexAttribArray(0);
+
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+		unsigned int indices[] = {
+			0,1,
+			0,3,
+			1,2,
+			2,3,
+
+			4,5,
+			4,7,
+			5,6,
+			6,7,
+
+			0,4,
+			1,5,
+			2,6,
+			3,7,
+
+		};
+		glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+	}
+	void Update() {
+		float vertices[] = {
+			hit->minX, hit->minY, hit->minZ, // bottom left back
+			hit->minX, hit->maxY, hit->minZ, // top left back
+			hit->maxX, hit->maxY, hit->minZ, // top right back
+			hit->maxX, hit->minY, hit->minZ, // bottom right back
+
+			hit->minX, hit->minY, hit->maxZ, // bottom left front
+			hit->minX, hit->maxY, hit->maxZ, // top left front
+			hit->maxX, hit->maxY, hit->maxZ, // top right front
+			hit->maxX, hit->minY, hit->maxZ, // bottom right front
+		};
+		glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), NULL, GL_DYNAMIC_DRAW);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_DYNAMIC_DRAW);
+	}
+	void Update(Hitbox* next) {
+		hit = next;
+		float vertices[] = {
+			hit->minX, hit->minY, hit->minZ, // bottom left back
+			hit->minX, hit->maxY, hit->minZ, // top left back
+			hit->maxX, hit->maxY, hit->minZ, // top right back
+			hit->maxX, hit->minY, hit->minZ, // bottom right back
+
+			hit->minX, hit->minY, hit->maxZ, // bottom left front
+			hit->minX, hit->maxY, hit->maxZ, // top left front
+			hit->maxX, hit->maxY, hit->maxZ, // top right front
+			hit->maxX, hit->minY, hit->maxZ, // bottom right front
+		};
+		glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), NULL, GL_DYNAMIC_DRAW);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_DYNAMIC_DRAW);
+	}
+};
+#endif
 
 class Transform {
 	public: 
@@ -565,7 +641,7 @@ int main() {
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 	int width, height, channelCount;
-	unsigned char *data = stbi_load("resources/textures/bricks.jpg", &width, &height, &channelCount, 0);
+	unsigned char *data = stbi_load("resources/textures/brickwall.jpg", &width, &height, &channelCount, 0);
 	unsigned int texture;
 	glGenTextures(1, &texture);
 
@@ -575,7 +651,7 @@ int main() {
 	glGenerateMipmap(GL_TEXTURE_2D);
 	stbi_image_free(data);
 
-	data = stbi_load("resources/textures/bricks_contrast.jpg", &width, &height, &channelCount, 0);
+	data = stbi_load("resources/textures/brickwall.jpg", &width, &height, &channelCount, 0);
 	unsigned int texture2;
 	glGenTextures(1, &texture2);
 
@@ -616,6 +692,9 @@ int main() {
 
 	Shader program("shaders/vertex.glsl", "shaders/fragment.glsl");
 	Shader screen("shaders/screenVert.glsl", "shaders/screenFrag.glsl");
+	#if HITBOX_VIEW
+	Shader hitShader("shaders/hitVert.glsl", "shaders/hitFrag.glsl");
+	#endif
 
 	Hitbox cameraBound;
 	cameraBound.id = 1;
@@ -655,6 +734,10 @@ int main() {
 	int winY;
 
 	glm::vec3 velocity(0,0,0);
+
+	#if HITBOX_VIEW
+	HitboxRenderer hitRenderer;
+	#endif
 
 	double prevTime = glfwGetTime();
 	int frameCount = 0;
@@ -780,6 +863,7 @@ int main() {
 		if(velocity.y < -0.5) {
 			velocity.y = -0.5;
 		}
+		cameraBound.Update();
 
 		Hitbox cameraFloorBound = cameraBound;
 		cameraFloorBound.scale.z *= 0.9;
@@ -814,6 +898,7 @@ int main() {
 		model.UpdateHitbox();
 		floor.UpdateHitbox();
 
+
 		perspective = glm::perspective(cam.fov, (float)winX/(float)winY, 0.1f, 100.f);
 
 		glUniformMatrix4fv(glGetUniformLocation(program.programID, "viewMat"), 1, GL_FALSE, glm::value_ptr(cam.invTransformMatrix));
@@ -822,6 +907,34 @@ int main() {
 
 		RenderModel(floor, program);
 		RenderModel(model, program);
+
+		#if HITBOX_VIEW
+		glUseProgram(hitShader.programID);
+
+		glUniformMatrix4fv(glGetUniformLocation(hitShader.programID, "viewMat"), 1, GL_FALSE, glm::value_ptr(cam.invTransformMatrix));
+		glUniformMatrix4fv(glGetUniformLocation(hitShader.programID, "perspMat"), 1, GL_FALSE, glm::value_ptr(perspective));
+		hitShader.setUniformVec3Floats("color", 0., 1., 0.);
+
+		glDisable(GL_DEPTH_TEST);
+		hitRenderer.Update(&model.hitbox);
+		glBindVertexArray(hitRenderer.VAO);
+		glDrawElements(GL_LINES, 24, GL_UNSIGNED_INT, 0);
+
+		hitRenderer.Update(&floor.hitbox);
+		glBindVertexArray(hitRenderer.VAO);
+		glDrawElements(GL_LINES, 24, GL_UNSIGNED_INT, 0);
+
+		hitRenderer.Update(&cameraBound);
+		glBindVertexArray(hitRenderer.VAO);
+		glDrawElements(GL_LINES, 24, GL_UNSIGNED_INT, 0);
+
+		hitShader.setUniformVec3Floats("color", 1., 0., 0.);
+		hitRenderer.Update(&cameraFloorBound);
+		glBindVertexArray(hitRenderer.VAO);
+		glDrawElements(GL_LINES, 24, GL_UNSIGNED_INT, 0);
+
+		glEnable(GL_DEPTH_TEST);
+		#endif
 
 		#if USING_IMGUI	
 		ImGui::Render();
