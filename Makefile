@@ -1,4 +1,4 @@
-all: obj/ build/ obj/main.o obj/stb_image.o build/voltcrs static/imgui/objCache.o build/cacheObj 
+all: obj/ build/ obj/main.o obj/stb_image.o build/voltcrs obj/objCache.o build/cacheObj 
 
 clean:
 	rm -r obj/ build/ 
@@ -19,9 +19,9 @@ obj/stb_image.o: src/stb_image.cpp
 build/voltcrs: obj/main.o obj/stb_image.o static/imgui/imgui_demo.o static/imgui/imgui_draw.o static/imgui/imgui_impl_glfw.o static/imgui/imgui_impl_opengl3.o static/imgui/imgui.o static/imgui/imgui_tables.o static/imgui/imgui_widgets.o 
 	${CXX} obj/main.o obj/stb_image.o static/imgui/imgui_demo.o static/imgui/imgui_draw.o static/imgui/imgui_impl_glfw.o static/imgui/imgui_impl_opengl3.o static/imgui/imgui.o static/imgui/imgui_tables.o static/imgui/imgui_widgets.o  -o build/voltcrs -lGL -lGLEW -lglfw  
 
-static/imgui/objCache.o: src/objCache.cpp
-	${CXX} src/objCache.cpp -c -o static/imgui/objCache.o  
+obj/objCache.o: src/objCache.cpp
+	${CXX} src/objCache.cpp -c -o obj/objCache.o  
 
-build/cacheObj: static/imgui/objCache.o 
-	${CXX} static/imgui/objCache.o  -o build/cacheObj  
+build/cacheObj: obj/objCache.o 
+	${CXX} obj/objCache.o  -o build/cacheObj  
 

@@ -65,14 +65,14 @@ class float3{
 	}
 };
 
-
-void cacheObjFile(std::string obj, std::string filename) {
+std::vector<float> LoadObjFile(std::string obj) {
 	std::vector<float3> allPoints;
 	std::vector<float3> triPoints;
 	std::vector<float2> allTexCoords;
 	std::vector<float2> texCoords;
 	std::vector<float3> allNormals;
 	std::vector<float3> normals;
+	std::vector<float3> tangents;
 
 	std::stringstream lines(obj);
 	std::string line;
@@ -164,7 +164,36 @@ void cacheObjFile(std::string obj, std::string filename) {
 
 		}
 	} 
-	//return {triPoints, texCoords, normals};
+
+	// tangents calculations cause im NOT messing with the stuff up there
+	// i kinda get how it works up there but i just used the sebastian lague logic ok
+	// https://www.youtube.com/watch?v=yyJ-hdISgnw
+	for(int i = 0; i < triPoints.size(); i+=3) {
+		float3 pos1 = triPoints.at(i);
+		float3 pos2 = triPoints.at(i+1);
+		float3 pos3 = triPoints.at(i+2);
+
+		float2 uv1 = texCoords.at(i);
+		float2 uv2 = texCoords.at(i+1);
+		float2 uv3 = texCoords.at(i+2);
+
+		float3 edge1 = pos2 - pos1;
+		float3 edge2 = pos3 - pos1;
+		float2 uvDelta1 = uv2-uv1;
+		float2 uvDelta2 = uv3-uv1;
+
+		float f = 1.f / (uvDelta1.x * uvDelta2.y - uvDelta2.x * uvDelta1.y);
+
+		float3 tangent;
+		tangent.x = f * (uvDelta2.y * edge1.x - uvDelta1.y * edge2.x);
+		tangent.y = f * (uvDelta2.y * edge1.y - uvDelta1.y * edge2.y);
+		tangent.z = f * (uvDelta2.y * edge1.z - uvDelta1.y * edge2.z);
+
+		tangents.push_back(tangent);
+		tangents.push_back(tangent);
+		tangents.push_back(tangent);
+	}
+
 	std::vector<float> value;
 	for(int i = 0; i < triPoints.size(); i++) {
 		value.push_back(triPoints.at(i).x);
@@ -177,7 +206,18 @@ void cacheObjFile(std::string obj, std::string filename) {
 		value.push_back(normals.at(i).x);
 		value.push_back(normals.at(i).y);
 		value.push_back(normals.at(i).z);
+
+		value.push_back(tangents.at(i).x);
+		value.push_back(tangents.at(i).y);
+		value.push_back(tangents.at(i).z);
 	}
+	return value;
+}
+
+
+
+void cacheObjFile(std::string obj, std::string filename) {
+	std::vector<float> value = LoadObjFile(obj);
 	std::ofstream cacheFile(filename, std::ios::binary);
 	for(float val : value) {
 		cacheFile.write(reinterpret_cast<const char*>(&val), sizeof(val));

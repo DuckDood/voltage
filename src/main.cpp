@@ -734,7 +734,8 @@ int main() {
 	material.specularTex = texture2;
 	material.normal = texture3;
 	material.shininess = 32;
-	Object model(LoadObjByName("resources/models/cube.obj"), material);
+	//Object model(LoadObjByName("resources/models/cube.obj"), material);
+	Object model(load3dCache("resources/cache/dragon.vtcache"), material);
 	model.position.z = -2;
 	model.position.y = -1.8;
 	model.cullType = BACK;

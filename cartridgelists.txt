@@ -25,6 +25,7 @@ build voltcrs
 
 rmbuild /
 
+oname obj/
 include objCache.cpp
 
 rmdep GL
