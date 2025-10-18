@@ -75,9 +75,17 @@ vec4 resolvePointLight(Light pointLight, Material objectMaterial, vec4 texColor,
 	if(objectMaterial.shininess == 0) {
 		specular = vec4(0,0,0,0);
 	}
-	//ambient *= attenuation;
-	//diffuse *= attenuation;
-	//specular *= attenuation;
+	ambient.x *= attenuation;
+	ambient.y *= attenuation;
+	ambient.z *= attenuation;
+
+	diffuse.x *= attenuation;
+	diffuse.y *= attenuation;
+	diffuse.z *= attenuation;
+
+	specular.x *= attenuation;
+	specular.y *= attenuation;
+	specular.z *= attenuation;
 
 	result = (ambient + diffuse + specular);
 	return result;
@@ -142,7 +150,7 @@ vec4 resolveSpotlight(Light spotLight, Material objectMaterial, vec4 texColor, v
 	//if(theta > spotLight.innerCutOff) {
 
 		float diff = max(dot(norm, lightDir), 0.0);
-		vec4 diffuse = vec4(spotLight.diffuse, 1.) * (diff * texColor);
+		vec4 diffuse = vec4(spotLight.diffuse, 0.) * (diff * texColor);
 
 		// specular
 		vec3 viewDir = normalize(viewPos - FragPos);
@@ -156,9 +164,18 @@ vec4 resolveSpotlight(Light spotLight, Material objectMaterial, vec4 texColor, v
 		diffuse *= intensity;
 		specular *= intensity;
 			
-		ambient *= attenuation;
-		diffuse *= attenuation;
-		specular *= attenuation;
+		ambient.x *= attenuation;
+		ambient.y *= attenuation;
+		ambient.z *= attenuation;
+
+		diffuse.x *= attenuation;
+		diffuse.y *= attenuation;
+		diffuse.z *= attenuation;
+
+		specular.x *= attenuation;
+		specular.y *= attenuation;
+		specular.z *= attenuation;
+
 
 		result = (ambient + diffuse + specular);
 	//} else {

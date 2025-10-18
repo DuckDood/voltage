@@ -21,7 +21,7 @@ abuild imgui.o
 abuild imgui_tables.o
 abuild imgui_widgets.o
 
-build voltcrs
+build voltage
 
 rmbuild /
 
