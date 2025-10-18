@@ -5,12 +5,14 @@ struct Material {
 	bool useLighting;
 	sampler2D diffuse;
 	sampler2D specular;
+	sampler2D normal;
 
 	vec4 specularColor;
 	vec4 diffuseColor;
 	
 	bool useDiffuseTex;
 	bool useSpecularTex;
+	bool useNormalMap;
 };
 
 layout (location = 0) out vec4 FragColor;
@@ -19,12 +21,10 @@ in vec2 texCoord;
 in vec3 normal;
 in vec3 FragPos;
 
+in mat3 TBN;
+
 uniform vec3 viewPos;
 uniform Material material;
-
-vec3 lightColor = vec3(1, 1, 1);
-
-// make uniform
 
 struct Light {
 	vec3 position;
@@ -193,18 +193,31 @@ void main() {
 	}
 	vec4 specColor = specColorVec4;
 
+	vec3 usedNormal;
+	if(material.useNormalMap) {
+		usedNormal = vec3(texture(material.normal, texCoord));
+
+		usedNormal = usedNormal*2. - 1.;
+
+		usedNormal = TBN*usedNormal;
+
+		usedNormal = normalize(usedNormal);
+	} else {
+		usedNormal = normal;
+	}
+
 	if(material.useLighting) {
 		for(int i = 0; i < lightNumber; i++) {
 			switch(light[i].type) {
 				case 0:
 				//result += resolveDirectionalLight(light[i], material, texCoord, normal);
-				result += resolveDirectionalLight(light[i], material, texColor, specColor, normal);
+				result += resolveDirectionalLight(light[i], material, texColor, specColor, usedNormal);
 				break;
 				case 1:
-				result += resolvePointLight(light[i], material, texColor, specColor, normal);
+				result += resolvePointLight(light[i], material, texColor, specColor, usedNormal);
 				break;
 				case 2:
-				result += resolveSpotlight(light[i], material, texColor, specColor, normal);
+				result += resolveSpotlight(light[i], material, texColor, specColor, usedNormal);
 				break;
 			}
 		}

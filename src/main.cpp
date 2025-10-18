@@ -99,6 +99,7 @@ std::vector<float> LoadObjFile(std::string obj) {
 	std::vector<float2> texCoords;
 	std::vector<float3> allNormals;
 	std::vector<float3> normals;
+	std::vector<float3> tangents;
 
 	std::stringstream lines(obj);
 	std::string line;
@@ -190,6 +191,36 @@ std::vector<float> LoadObjFile(std::string obj) {
 
 		}
 	} 
+
+	// tangents calculations cause im NOT messing with the stuff up there
+	// i kinda get how it works up there but i just used the sebastian lague logic ok
+	// https://www.youtube.com/watch?v=yyJ-hdISgnw
+	for(int i = 0; i < triPoints.size(); i+=3) {
+		float3 pos1 = triPoints.at(i);
+		float3 pos2 = triPoints.at(i+1);
+		float3 pos3 = triPoints.at(i+2);
+
+		float2 uv1 = texCoords.at(i);
+		float2 uv2 = texCoords.at(i+1);
+		float2 uv3 = texCoords.at(i+2);
+
+		float3 edge1 = pos2 - pos1;
+		float3 edge2 = pos3 - pos1;
+		float2 uvDelta1 = uv2-uv1;
+		float2 uvDelta2 = uv3-uv1;
+
+		float f = 1.f / (uvDelta1.x * uvDelta2.y - uvDelta2.x * uvDelta1.y);
+
+		float3 tangent;
+		tangent.x = f * (uvDelta2.y * edge1.x - uvDelta1.y * edge2.x);
+		tangent.y = f * (uvDelta2.y * edge1.y - uvDelta1.y * edge2.y);
+		tangent.z = f * (uvDelta2.y * edge1.z - uvDelta1.y * edge2.z);
+
+		tangents.push_back(tangent);
+		tangents.push_back(tangent);
+		tangents.push_back(tangent);
+	}
+
 	std::vector<float> value;
 	for(int i = 0; i < triPoints.size(); i++) {
 		value.push_back(triPoints.at(i).x);
@@ -202,9 +233,21 @@ std::vector<float> LoadObjFile(std::string obj) {
 		value.push_back(normals.at(i).x);
 		value.push_back(normals.at(i).y);
 		value.push_back(normals.at(i).z);
+
+		value.push_back(tangents.at(i).x);
+		value.push_back(tangents.at(i).y);
+		value.push_back(tangents.at(i).z);
 	}
 	return value;
 }
+
+std::vector<float> LoadObjByName(std::string path) {
+	std::ifstream file(path);
+	std::string fileStr = "";
+	for(std::string line; std::getline(file, line); fileStr += line + "\n");
+	return LoadObjFile(fileStr);
+}
+
 std::vector<float> load3dCache(std::string path) {
 	std::ifstream cacheFile(path, std::ios::binary);
 	if(!cacheFile.good()) {
@@ -385,6 +428,7 @@ class Camera : public Transform {
 struct Material {
 	GLuint diffuseTex;
 	GLuint specularTex;
+	GLuint normal;
 	float shininess;
 	bool useLighting = 1;
 
@@ -395,6 +439,7 @@ struct Material {
 	
 	bool useDiffuseTex = 1;
 	bool useSpecularTex = 1;
+	bool useNormalMap = 0;
 };
 enum CULL {
 	NONE = 0,
@@ -418,15 +463,18 @@ class Model : public Transform {
 			glGenBuffers(1, &VBO);
 			glBindBuffer(GL_ARRAY_BUFFER, VBO);
 			glBufferData(GL_ARRAY_BUFFER, obj.size() * sizeof(float), obj.data(), GL_STATIC_DRAW);
-			glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(0));
+			glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void*)(0));
 			glEnableVertexAttribArray(0);
 
-			glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3*sizeof(float)));
+			glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void*)(3*sizeof(float)));
 			glEnableVertexAttribArray(1);
 
-			glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(5*sizeof(float)));
+			glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void*)(5*sizeof(float)));
 			glEnableVertexAttribArray(2);
-			vertCount = obj.size()/8;
+
+			glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void*)(8*sizeof(float)));
+			glEnableVertexAttribArray(3);
+			vertCount = obj.size()/11;
 
 			this->mat = material;
 			usable = true;
@@ -527,6 +575,8 @@ void RenderModel(Model model, Shader shader) {
 		glBindTexture(GL_TEXTURE_2D, model.mat.diffuseTex);
 		glActiveTexture(GL_TEXTURE1);
 		glBindTexture(GL_TEXTURE_2D, model.mat.specularTex);
+		glActiveTexture(GL_TEXTURE2);
+		glBindTexture(GL_TEXTURE_2D, model.mat.normal);
 
 		glUniformMatrix4fv(glGetUniformLocation(shader.programID, "modelMat"), 1, GL_FALSE, glm::value_ptr(model.transformMatrix));
 		shader.setUniformFloat("material.shininess", model.mat.shininess);
@@ -535,12 +585,14 @@ void RenderModel(Model model, Shader shader) {
 
 		shader.setUniformInt("material.useDiffuseTex", model.mat.useDiffuseTex);
 		shader.setUniformInt("material.useSpecularTex", model.mat.useSpecularTex);
+		shader.setUniformInt("material.useNormalMap", model.mat.useNormalMap);
 
 		shader.setUniformVec4("material.diffuseColor", model.mat.diffuseColor);
 		shader.setUniformVec4("material.specularColor", model.mat.specularColor);
 
 		shader.setUniformInt("material.diffuse", 0);
 		shader.setUniformInt("material.specular", 1);
+		shader.setUniformInt("material.normal", 2);
 
 
 		glBindVertexArray(model.VAO);
@@ -589,6 +641,7 @@ void Model_ImGui_Window(Model *model, std::string label) {
 	ImGui::Checkbox(("Use Lighting##" + label).c_str(), &model->mat.useLighting);
 	ImGui::Checkbox(("Use DiffuseTex##" + label).c_str(), &model->mat.useDiffuseTex);
 	ImGui::Checkbox(("Use SpecTex##" + label).c_str(), &model->mat.useSpecularTex);
+	ImGui::Checkbox(("Use Normal Map##" + label).c_str(), &model->mat.useNormalMap);
 	ImGui::End();
 }
 #endif
@@ -662,14 +715,26 @@ int main() {
 
 	stbi_image_free(data);
 
+	data = stbi_load("resources/textures/nmap.jpg", &width, &height, &channelCount, 0);
+	unsigned int texture3;
+	glGenTextures(1, &texture3);
+
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, texture3);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+	glGenerateMipmap(GL_TEXTURE_2D);
+
+	stbi_image_free(data);
+
 
 	std::vector<Hitbox*> hitboxes;
 
 	Material material;
 	material.diffuseTex = texture;
 	material.specularTex = texture2;
+	material.normal = texture3;
 	material.shininess = 32;
-	Object model(load3dCache("resources/cache/cube.vtcache"), material);
+	Object model(LoadObjByName("resources/models/cube.obj"), material);
 	model.position.z = -2;
 	model.position.y = -1.8;
 	model.cullType = BACK;
