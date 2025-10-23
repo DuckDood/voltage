@@ -69,8 +69,11 @@ vec4 resolvePointLight(Light pointLight, Material objectMaterial, vec4 texColor,
 
 	// specular
 	vec3 viewDir = normalize(viewPos - FragPos);
-	vec3 reflectDir = reflect(-lightDir, norm);
-	float spec = pow(max(dot(viewDir, reflectDir), 0.0), objectMaterial.shininess);
+	//vec3 reflectDir = reflect(-lightDir, norm);
+	vec3 halfDir = normalize(lightDir + viewDir);
+
+	float spec = pow(max(dot(norm, halfDir), 0.0), objectMaterial.shininess);
+
 	vec4 specular = vec4(pointLight.specular, 1.) * (spec * specColor);
 	if(objectMaterial.shininess == 0) {
 		specular = vec4(0,0,0,0);
@@ -113,8 +116,10 @@ vec4 resolveDirectionalLight(Light directionLight, Material objectMaterial, vec4
 
 	// specular
 	vec3 viewDir = normalize(viewPos - FragPos);
-	vec3 reflectDir = reflect(-lightDir, norm);
-	float spec = pow(max(dot(viewDir, reflectDir), 0.0), objectMaterial.shininess);
+	//vec3 reflectDir = reflect(-lightDir, norm);
+	vec3 halfDir = normalize(lightDir + viewDir);
+
+	float spec = pow(max(dot(norm, halfDir), 0.0), objectMaterial.shininess);
 	vec4 specular = vec4(directionLight.specular, 1.) * (spec * specColor);
 	if(objectMaterial.shininess == 0) {
 		specular = vec4(0,0,0,0);
@@ -154,8 +159,10 @@ vec4 resolveSpotlight(Light spotLight, Material objectMaterial, vec4 texColor, v
 
 		// specular
 		vec3 viewDir = normalize(viewPos - FragPos);
-		vec3 reflectDir = reflect(-lightDir, norm);
-		float spec = pow(max(dot(viewDir, reflectDir), 0.0), objectMaterial.shininess);
+		//vec3 reflectDir = reflect(-lightDir, norm);
+		vec3 halfDir = normalize(lightDir + viewDir);
+    	
+		float spec = pow(max(dot(norm, halfDir), 0.0), objectMaterial.shininess);
 		vec4 specular = vec4(spotLight.specular, 1.) * (spec * specColor);
 		if(objectMaterial.shininess == 0) {
 			specular = vec4(0,0,0,0);
