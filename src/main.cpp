@@ -24,8 +24,8 @@
 #define HITBOX_VIEW 0
 #endif
 
-#define INIT_SCR_WIDTH 800
-#define INIT_SCR_HEIGHT 600
+#define INIT_SCR_WIDTH 1366
+#define INIT_SCR_HEIGHT 768
 
 void onWinResize(GLFWwindow* window, int width, int height) {
 	std::cout << width << " " << height << std::endl;
@@ -309,6 +309,87 @@ class Hitbox : public boundingBox {
 			return false;
 		}
 
+};
+
+class Framebuffer {
+	public:
+	unsigned int framebuffer;
+	unsigned int renderbuffer;
+	unsigned int colorBuffer;
+
+	int width, height;
+
+	Framebuffer(int inWidth, int inHeight) {
+		this->width = inWidth;
+		this->height = inHeight;
+		glGenFramebuffers(1, &this->framebuffer);
+		glBindFramebuffer(GL_FRAMEBUFFER, this->framebuffer);
+
+		glGenTextures(1, &this->colorBuffer);
+		glBindTexture(GL_TEXTURE_2D, this->colorBuffer);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, this->width, this->height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, this->colorBuffer, 0);
+
+		glGenRenderbuffers(1, &this->renderbuffer);
+		glBindRenderbuffer(GL_RENDERBUFFER, this->renderbuffer);
+		
+		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, this->width, this->height);
+
+		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, this->renderbuffer);
+
+		if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+			std::cout << "Framebuffer failed to initialise" << std::endl;
+		}
+
+		glBindRenderbuffer(GL_RENDERBUFFER, 0);
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+	}
+
+	void Start(int inWidth, int inHeight) {
+		if(inWidth != this->width || inHeight != this->height) {
+			this->width = inWidth;
+			this->height = inHeight;
+
+			glDeleteFramebuffers(1, &this->framebuffer);
+
+			glGenFramebuffers(1, &this->framebuffer);
+			glBindFramebuffer(GL_FRAMEBUFFER, this->framebuffer);
+
+			glDeleteTextures(1, &this->colorBuffer);
+			glGenTextures(1, &this->colorBuffer);
+
+			glBindTexture(GL_TEXTURE_2D, this->colorBuffer);
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, this->width, this->height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+	
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, this->colorBuffer, 0);
+
+			glDeleteRenderbuffers(1, &this->renderbuffer);
+			glGenRenderbuffers(1, &this->renderbuffer);
+			glBindRenderbuffer(GL_RENDERBUFFER, this->renderbuffer);
+			
+			glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, this->width, this->height);
+
+			glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, this->renderbuffer);
+
+			if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+				std::cout << "Framebuffer failed to resize" << std::endl;
+			}
+
+		}
+		glBindFramebuffer(GL_FRAMEBUFFER, this->framebuffer);
+	}
+
+	void End() {
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	}
 };
 
 #if HITBOX_VIEW
@@ -617,7 +698,7 @@ void key_call(GLFWwindow *win, int key, int scancode, int action, int mods) {
 
 #if USING_IMGUI
 void Model_ImGui_Window(Model *model, std::string label) {
-	ImGui::Begin(label.c_str());
+	ImGui::Begin(label.c_str(), 0, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize);
 	ImGui::Text("Position");
 	ImGui::DragFloat(("x##Pos##" + label).c_str(), &model->position.x, 0.01);
 	ImGui::DragFloat(("y##Pos##" + label).c_str(), &model->position.y, 0.01);
@@ -628,9 +709,9 @@ void Model_ImGui_Window(Model *model, std::string label) {
 	ImGui::DragFloat(("z##Scale##" + label).c_str(), &model->scale.z, 0.01);
 
 	ImGui::Text("Rotation");
-	ImGui::DragFloat(("x##Rotation" + label).c_str(), &model->yaw, 0.003);
-	ImGui::DragFloat(("y##Rotation" + label).c_str(), &model->pitch, 0.003);
-	ImGui::DragFloat(("z##Rotation" + label).c_str(), &model->roll, 0.003);
+	ImGui::DragFloat(("x##Rotation##" + label).c_str(), &model->yaw, 0.003);
+	ImGui::DragFloat(("y##Rotation##" + label).c_str(), &model->pitch, 0.003);
+	ImGui::DragFloat(("z##Rotation##" + label).c_str(), &model->roll, 0.003);
 
 	ImGui::Text("Material");
 
@@ -644,7 +725,44 @@ void Model_ImGui_Window(Model *model, std::string label) {
 	ImGui::Checkbox(("Use Normal Map##" + label).c_str(), &model->mat.useNormalMap);
 	ImGui::End();
 }
+void Light_ImGui_Window(Light *light, std::string label) {
+	ImGui::Begin(label.c_str(), 0, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize);
+	ImGui::ColorPicker3(("diffuse##" + label).c_str(), glm::value_ptr(light->diffuse));
+	ImGui::ColorPicker3(("specular##" + label).c_str(), glm::value_ptr(light->specular));
+	ImGui::ColorPicker3(("ambient##" + label).c_str(), glm::value_ptr(light->ambient));
+	ImGui::DragFloat3(("position##" + label).c_str(), glm::value_ptr(light->position), 0.05);
+	ImGui::DragFloat3(("direction##" + label).c_str(), glm::value_ptr(light->direction), 0.05);
+
+	ImGui::DragFloat(("incutoff##" + label).c_str(), &light->innerCutOff, 0.01);
+	ImGui::DragFloat(("outcutoff##" + label).c_str(), &light->outerCutOff, 0.01);
+
+	ImGui::Text("Attenuation");
+	ImGui::DragFloat(("constant##" + label).c_str(), &light->constant, 0.01);
+	ImGui::DragFloat(("linear##" + label).c_str(), &light->linear, 0.01);
+	ImGui::DragFloat(("quadratic##" + label).c_str(), &light->quadratic, 0.01);
+
+	ImGui::Text("Type");
+	ImGui::RadioButton(("directional##" + label).c_str(), &light->type, 0);
+	ImGui::SameLine();
+	ImGui::RadioButton(("point##" + label).c_str(), &light->type, 1);
+	ImGui::SameLine();
+	ImGui::RadioButton(("spotlight##" + label).c_str(), &light->type, 2);
+
+	ImGui::End();
+}
 #endif
+
+float quadVertices[] = {  
+    // positions   // texCoords
+    -1.0f,  1.0f,  0.0f, 1.0f,
+    -1.0f, -1.0f,  0.0f, 0.0f,
+     1.0f, -1.0f,  1.0f, 0.0f,
+
+    -1.0f,  1.0f,  0.0f, 1.0f,
+     1.0f, -1.0f,  1.0f, 0.0f,
+     1.0f,  1.0f,  1.0f, 1.0f
+};
+
 
 int main() {
 	if(glfwInit() == GL_FALSE) {
@@ -655,7 +773,7 @@ int main() {
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
 
-	GLFWwindow *window = glfwCreateWindow(INIT_SCR_WIDTH, INIT_SCR_HEIGHT, "LearnOpenGL", NULL, NULL);
+	GLFWwindow *window = glfwCreateWindow(INIT_SCR_WIDTH, INIT_SCR_HEIGHT, "voltage", NULL, NULL);
 	if(window == NULL) {
 		std::cerr << "Failed to create glfw window" << std::endl;
 		glfwTerminate();
@@ -687,6 +805,20 @@ int main() {
 	ImGui_ImplGlfw_InitForOpenGL(window, true);          // Second param install_callback=true will install GLFW callbacks and chain to existing ones.
 	ImGui_ImplOpenGL3_Init();
 	#endif
+
+	unsigned int qVAO;
+	unsigned int qVBO;
+	glGenVertexArrays(1, &qVAO);
+	glBindVertexArray(qVAO);
+	glGenBuffers(1, &qVBO);
+	glBindBuffer(GL_ARRAY_BUFFER, qVBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), quadVertices, GL_STATIC_DRAW);
+	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(0));
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2*sizeof(float)));
+	glEnableVertexAttribArray(1);
+	
+
 
 
 	glEnable(GL_DEPTH_TEST);
@@ -726,6 +858,7 @@ int main() {
 
 	stbi_image_free(data);
 
+	Framebuffer mainFramebuffer(INIT_SCR_WIDTH, INIT_SCR_HEIGHT);
 
 	std::vector<Hitbox*> hitboxes;
 
@@ -790,7 +923,7 @@ int main() {
 	sun.direction = glm::vec3(0.f, 1.f, 0.0f);
 	
 	lights.push_back(&light);
-	//lights.push_back(&sun);
+	lights.push_back(&sun);
 
 	double mouseX;
 	double mouseY;
@@ -806,6 +939,8 @@ int main() {
 
 	double prevTime = glfwGetTime();
 	int frameCount = 0;
+	bool screenShader = true;
+
 	while(!glfwWindowShouldClose(window)) {
 		double currentTime = glfwGetTime();
 		frameCount++;
@@ -814,6 +949,7 @@ int main() {
 			frameCount = 0;
 			prevTime = currentTime;
 		}
+		glClear(GL_COLOR_BUFFER_BIT);
 		
 
 
@@ -831,29 +967,13 @@ int main() {
 		#if USING_IMGUI
 		Model_ImGui_Window(&model, "Model");
 		Model_ImGui_Window(&floor, "Model2");
+
+		Light_ImGui_Window(&sun, "sun");
+		Light_ImGui_Window(&light, "light");
 	
-		ImGui::Begin("Light");
-		ImGui::ColorPicker3("diffuse", glm::value_ptr(light.diffuse));
-		ImGui::ColorPicker3("specular", glm::value_ptr(light.specular));
-		ImGui::ColorPicker3("ambient", glm::value_ptr(light.ambient));
-		ImGui::DragFloat3("position", glm::value_ptr(light.position), 0.05);
-		ImGui::DragFloat3("direction", glm::value_ptr(light.direction), 0.05);
 
-		ImGui::DragFloat("incutoff", &light.innerCutOff, 0.01);
-		ImGui::DragFloat("outcutoff", &light.outerCutOff, 0.01);
-
-		ImGui::Text("Attenuation");
-		ImGui::DragFloat("constant", &light.constant, 0.01);
-		ImGui::DragFloat("linear", &light.linear, 0.01);
-		ImGui::DragFloat("quadratic", &light.quadratic, 0.01);
-
-		ImGui::Text("Type");
-		ImGui::RadioButton("directional", &light.type, 0);
-		ImGui::SameLine();
-		ImGui::RadioButton("point", &light.type, 1);
-		ImGui::SameLine();
-		ImGui::RadioButton("spotlight", &light.type, 2);
-
+		ImGui::Begin("Screen");
+		ImGui::Checkbox("Use Screen Shader", &screenShader);
 		ImGui::End();
 		#endif
 
@@ -862,7 +982,11 @@ int main() {
 		getMouseDelta(mouseX, mouseY, &mouseX, &mouseY);
 		glfwGetWindowSize(window, &winX, &winY);
 
+		if(screenShader) {
+		mainFramebuffer.Start(winX, winY);
+		}
 		glUseProgram(program.programID);
+		glEnable(GL_DEPTH_TEST);
 		glClearColor(0, 0, 0, 1);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -972,6 +1096,18 @@ int main() {
 
 		RenderModel(floor, program);
 		RenderModel(model, program);
+
+
+		if(screenShader) {
+		mainFramebuffer.End();
+		glDisable(GL_DEPTH_TEST);
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, mainFramebuffer.colorBuffer);
+		glUseProgram(screen.programID);
+		}
+		glBindVertexArray(qVAO);
+		glDrawArrays(GL_TRIANGLES, 0, 6);
+		glEnable(GL_DEPTH_TEST);
 
 		#if HITBOX_VIEW
 		glUseProgram(hitShader.programID);
