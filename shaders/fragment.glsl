@@ -209,28 +209,29 @@ void main() {
 	}
 	vec4 texColor = texColorVec4;
 
-	if(material.useSpecularTex) {
-		specColorVec4 = texture(material.specular, texCoord);
-		specColorVec4 *= material.specularColor;
-	} else {
-		specColorVec4 = material.specularColor;
-	}
-	vec4 specColor = specColorVec4;
-
-	vec3 usedNormal;
-	if(material.useNormalMap) {
-		usedNormal = vec3(texture(material.normal, texCoord));
-
-		usedNormal = usedNormal*2. - 1.;
-
-		usedNormal = TBN*usedNormal;
-
-		usedNormal = normalize(usedNormal);
-	} else {
-		usedNormal = normal;
-	}
 
 	if(material.useLighting) {
+		if(material.useSpecularTex) {
+			specColorVec4 = texture(material.specular, texCoord);
+			specColorVec4 *= material.specularColor;
+		} else {
+			specColorVec4 = material.specularColor;
+		}
+		vec4 specColor = specColorVec4;
+
+		vec3 usedNormal;
+		if(material.useNormalMap) {
+			usedNormal = vec3(texture(material.normal, texCoord));
+
+			usedNormal = usedNormal*2. - 1.;
+
+			usedNormal = TBN*usedNormal;
+
+			usedNormal = normalize(usedNormal);
+		} else {
+			usedNormal = normal;
+		}
+
 		for(int i = 0; i < lightNumber; i++) {
 			switch(light[i].type) {
 				case 0:
@@ -248,5 +249,6 @@ void main() {
 	} else {
 		result = texColor;
 	}
+	if(result.a <= 0.) discard;
 	FragColor = result;
 }

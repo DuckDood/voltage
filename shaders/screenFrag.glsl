@@ -12,7 +12,7 @@ mat4 bayer = mat4(
 );
 
 void main() {
-	float reduction = 1.;
+	float reduction = 3.;
 
     vec4 pixColor = texture2D(tex, v_texcoord);
 

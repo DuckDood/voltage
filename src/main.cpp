@@ -787,7 +787,7 @@ int main() {
 		glfwTerminate();
 		return 1;
 	}
-	//glfwSwapInterval(0);
+	glfwSwapInterval(0);
 	glViewport(0,0,INIT_SCR_WIDTH,INIT_SCR_HEIGHT);
 	glfwSetFramebufferSizeCallback(window, onWinResize);
 	bool capture = true;
@@ -867,12 +867,12 @@ int main() {
 	material.specularTex = texture2;
 	material.normal = texture3;
 	material.shininess = 32;
-	Object model(load3dCache("resources/cache/cube.vtcache"), material);
+	Object model(load3dCache("resources/cache/dragon.vtcache"), material);
 	model.position.z = -2;
 	model.position.y = -1.8;
 	model.cullType = BACK;
 
-	Object floor(&model);
+	Object floor(load3dCache("resources/cache/cube.vtcache"), material);
 	hitboxes.push_back(&model.hitbox);
 	hitboxes.push_back(&floor.hitbox);
 
@@ -1104,10 +1104,11 @@ int main() {
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, mainFramebuffer.colorBuffer);
 		glUseProgram(screen.programID);
-		}
+		
 		glBindVertexArray(qVAO);
 		glDrawArrays(GL_TRIANGLES, 0, 6);
 		glEnable(GL_DEPTH_TEST);
+		}
 
 		#if HITBOX_VIEW
 		glUseProgram(hitShader.programID);
