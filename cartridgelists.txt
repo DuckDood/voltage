@@ -5,21 +5,25 @@ cdir build/
 
 dep GL
 dep GLEW
-dep glfw
+dep SDL3
 
-incflaf -O2
+checknext defines.h
 incflag -Iinclude/
 include main.cpp
-include stb_image.cpp
 
-oname static/imgui/
-abuild imgui_demo.o
-abuild imgui_draw.o
-abuild imgui_impl_glfw.o
-abuild imgui_impl_opengl3.o
-abuild imgui.o
-abuild imgui_tables.o
-abuild imgui_widgets.o
+checknext defines.h
+incflag -Iinclude/
+include voltage.cpp
+
+oname static/
+abuild imgui/imgui_demo.o
+abuild imgui/imgui_draw.o
+abuild imgui/imgui_impl_sdl3.o
+abuild imgui/imgui_impl_opengl3.o
+abuild imgui/imgui.o
+abuild imgui/imgui_tables.o
+abuild imgui/imgui_widgets.o
+abuild stb_image.o
 
 build voltage
 
@@ -30,6 +34,6 @@ include objCache.cpp
 
 rmdep GL
 rmdep GLEW
-rmdep glfw
+rmdep SDL3
 
 build cacheObj

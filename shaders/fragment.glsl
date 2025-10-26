@@ -192,7 +192,7 @@ vec4 resolveSpotlight(Light spotLight, Material objectMaterial, vec4 texColor, v
 	return result;
 }
 
-uniform Light light[256];
+uniform Light light[64];
 uniform int lightNumber;
 
 void main() {
@@ -235,7 +235,6 @@ void main() {
 		for(int i = 0; i < lightNumber; i++) {
 			switch(light[i].type) {
 				case 0:
-				//result += resolveDirectionalLight(light[i], material, texCoord, normal);
 				result += resolveDirectionalLight(light[i], material, texColor, specColor, usedNormal);
 				break;
 				case 1:

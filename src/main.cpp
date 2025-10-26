@@ -1,595 +1,25 @@
 #include <iostream>
 #include <vector>
-#include <sstream>
-#include <fstream>
 #include <GL/glew.h>
-#include <GLFW/glfw3.h>
+#include <SDL3/SDL.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
-#include "shader.h"
-#include "stb_image.h"
-
-#ifndef USING_IMGUI
-#define USING_IMGUI 1
-#endif
+#include "voltage.h"
+#include <stb_image.h>
 
 #if USING_IMGUI
 #include <imgui/imgui.h>
-#include <imgui/imgui_impl_glfw.h>
+#include <imgui/imgui_impl_sdl3.h>
 #include <imgui/imgui_impl_opengl3.h>
 #endif
 
-#ifndef HITBOX_VIEW
-#define HITBOX_VIEW 0
-#endif
 
 #define INIT_SCR_WIDTH 1366
 #define INIT_SCR_HEIGHT 768
 
-void onWinResize(GLFWwindow* window, int width, int height) {
-	std::cout << width << " " << height << std::endl;
-	glViewport(0,0,width,height);
-}
 
-class float2{
-	public:
-	float2 operator+(float2 b) {
-		return float2(this->x + b.x, this->y + b.y);
-	}
-	float2 operator-(float2 b) {
-		return float2(this->x - b.x, this->y - b.y);
-	}
-		#pragma omp parallel for
-	float2 operator*(float2 b) {
-		return float2(this->x * b.x, this->y * b.y);
-	}
-	float2 operator*(float b) {
-		return float2(this->x * b, this->y * b);
-	}
-	float2 operator/(float b) {
-		return float2(this->x / b, this->y / b);
-	}
-	float x;
-	float y;
-	float2(float x, float y) {
-		this->x = x;
-		this->y = y;
-	}
-	float2() {
-	}
-};
-class float3{
-	public:
-	float x = 0;
-	float y = 0;
-	float z = 0;
-	operator float2() const {
-		return float2(this->x, this->y);
-	}
-	float3 operator*(float b) {
-		return float3(this->x * b, this->y * b, this->z * b);
-	}
-	float3 operator*(float3 b) {
-		return float3(this->x * b.x, this->y * b.y, this->z * b.z);
-	}
-	float3 operator/(float b) {
-		return float3(this->x / b, this->y / b, this->z / b);
-	}
-	float3 operator+(float3 b) {
-		return float3(this->x + b.x, this->y + b.y, this->z + b.z);
-	}
-	float3 operator-(float3 b) {
-		return float3(this->x - b.x, this->y - b.y, this->z - b.z);
-	}
-	float3(float x, float y, float z) {
-		this->x = x;
-		this->y = y;
-		this->z = z;
-	}
-	float3() {
-	}
-};
-
-
-std::vector<float> LoadObjFile(std::string obj) {
-	std::vector<float3> allPoints;
-	std::vector<float3> triPoints;
-	std::vector<float2> allTexCoords;
-	std::vector<float2> texCoords;
-	std::vector<float3> allNormals;
-	std::vector<float3> normals;
-	std::vector<float3> tangents;
-
-	std::stringstream lines(obj);
-	std::string line;
-	int a=0;
-
-	while(std::getline(lines, line, '\n')) {
-		if(line.length() < 2) continue;
-		if(line.substr(0, 2) == "v ") {
-			std::vector<float> axes;
-			std::stringstream words(line);
-			std::string word;
-			int i = 2;
-			while(std::getline(words, word, ' ')) {
-				if(i > 2) {
-					axes.push_back(std::stof(word));
-				}
-				i++;
-			}
-			allPoints.push_back({axes[0], axes[1], axes[2]});
-		} else if(line.substr(0,3) == "vt ") {
-
-			std::vector<std::string> axes;
-			std::stringstream words(line);
-			std::string word;
-			int i = 2;
-			while(std::getline(words, word, ' ')) {
-				if(i > 2) {
-					axes.push_back(word);
-				}
-				i++;
-			}
-			float ax1 = std::stof(axes[0]);
-			float ax2 = std::stof(axes[1]);
-			float2 t = float2(ax1, 1-ax2);
-			allTexCoords.push_back(t);
-			
-		}else if(line.substr(0,3) == "vn ") {
-
-			std::vector<std::string> axes;
-			std::stringstream words(line);
-			std::string word;
-			int i = 2;
-			while(std::getline(words, word, ' ')) {
-				if(i > 2) {
-					axes.push_back(word);
-				}
-				i++;
-			}
-			float3 t = float3(std::stof(axes[0]), std::stof(axes[1]), std::stof(axes[2]));
-			allNormals.push_back(t);
-			
-		}else
-
-		if(line.substr(0, 2) == "f ") {
-			std::stringstream words(line);
-			std::string word;
-			std::vector<std::string> faceIndexGroups;
-			int c = 2;
-			while(std::getline(words, word, ' ')) {
-				if(c > 2) {
-					faceIndexGroups.push_back(word);
-				}
-				c++;
-			}
-
-			for(int i = 0; i<faceIndexGroups.size(); i++) {
-				std::vector<int> indexGroup;
-				std::stringstream thisFaceGroup(faceIndexGroups[i]);
-				while(std::getline(thisFaceGroup, word, '/')) {
-					if(word.empty()) indexGroup.push_back(0); else
-					indexGroup.push_back(std::stoi(word));
-				}
-				int pointIndex = indexGroup[0]-1;
-				int texIndex = indexGroup.size() > 1? indexGroup.at(1)-1 : -1;
-				int normIndex = indexGroup.size() > 2? indexGroup.at(2)-1 : -1;
-				if(i>=3) triPoints.push_back(triPoints[triPoints.size()-(3 * i - 6)]);
-				if(i>=3) triPoints.push_back(triPoints[triPoints.size()-(2)]);
-
-				if(i>=3) texCoords.push_back(texCoords[texCoords.size()-(3 * i - 6)]);
-				if(i>=3) texCoords.push_back(texCoords[texCoords.size()-(2)]);
-
-				if(i>=3) normals.push_back(normals[normals.size()-(3 * i - 6)]);
-				if(i>=3) normals.push_back(normals[normals.size()-(2)]);
-
-				triPoints.push_back(allPoints[pointIndex]);
-				texCoords.push_back(texIndex >= 0? allTexCoords[texIndex] : float2(0,0));
-				normals.push_back(normIndex >= 0? allNormals[normIndex] : float3(0,0,0));
-			}
-
-		}
-	} 
-
-	// tangents calculations cause im NOT messing with the stuff up there
-	// i kinda get how it works up there but i just used the sebastian lague logic ok
-	// https://www.youtube.com/watch?v=yyJ-hdISgnw
-	for(int i = 0; i < triPoints.size(); i+=3) {
-		float3 pos1 = triPoints.at(i);
-		float3 pos2 = triPoints.at(i+1);
-		float3 pos3 = triPoints.at(i+2);
-
-		float2 uv1 = texCoords.at(i);
-		float2 uv2 = texCoords.at(i+1);
-		float2 uv3 = texCoords.at(i+2);
-
-		float3 edge1 = pos2 - pos1;
-		float3 edge2 = pos3 - pos1;
-		float2 uvDelta1 = uv2-uv1;
-		float2 uvDelta2 = uv3-uv1;
-
-		float f = 1.f / (uvDelta1.x * uvDelta2.y - uvDelta2.x * uvDelta1.y);
-
-		float3 tangent;
-		tangent.x = f * (uvDelta2.y * edge1.x - uvDelta1.y * edge2.x);
-		tangent.y = f * (uvDelta2.y * edge1.y - uvDelta1.y * edge2.y);
-		tangent.z = f * (uvDelta2.y * edge1.z - uvDelta1.y * edge2.z);
-
-		tangents.push_back(tangent);
-		tangents.push_back(tangent);
-		tangents.push_back(tangent);
-	}
-
-	std::vector<float> value;
-	for(int i = 0; i < triPoints.size(); i++) {
-		value.push_back(triPoints.at(i).x);
-		value.push_back(triPoints.at(i).y);
-		value.push_back(triPoints.at(i).z);
-
-		value.push_back(texCoords.at(i).x);
-		value.push_back(texCoords.at(i).y);
-
-		value.push_back(normals.at(i).x);
-		value.push_back(normals.at(i).y);
-		value.push_back(normals.at(i).z);
-
-		value.push_back(tangents.at(i).x);
-		value.push_back(tangents.at(i).y);
-		value.push_back(tangents.at(i).z);
-	}
-	return value;
-}
-
-std::vector<float> LoadObjByName(std::string path) {
-	std::ifstream file(path);
-	std::string fileStr = "";
-	for(std::string line; std::getline(file, line); fileStr += line + "\n");
-	return LoadObjFile(fileStr);
-}
-
-std::vector<float> load3dCache(std::string path) {
-	std::ifstream cacheFile(path, std::ios::binary);
-	if(!cacheFile.good()) {
-		std::cerr << "Cache file does not exist.\n";
-	}
-	cacheFile.seekg(0,std::ios::end);
-	int size = cacheFile.tellg();
-	cacheFile.seekg(0,std::ios::beg);
-
-	std::vector<float> value(size/sizeof(float));
-
-	cacheFile.read((char*)value.data(), size);
-
-	return value;
-}
-
-// https://developer.mozilla.org/en-US/docs/Games/Techniques/3D_collision_detection
-// i couldve figured it out but its easier to copy just for easy comparison logic
-class boundingBox {
-	public:
-	float minX;
-	float maxX;
-
-	float minY;
-	float maxY;
-
-	float minZ;
-	float maxZ;
-  
-	glm::vec3 position = glm::vec3(0.,0.,0.);
-	glm::vec3 scale = glm::vec3(1.,1.,1.);
-
-	void Update() {
-		minX = position.x - scale.x;
-		maxX = position.x + scale.x;
-
-		minY = position.y - scale.y;
-		maxY = position.y + scale.y;
-
-		minZ = position.z - scale.z;
-		maxZ = position.z + scale.z;
-	}
-};
-bool intersect(boundingBox a, boundingBox b) {
-	return a.minX <= b.maxX && a.maxX >= b.minX && a.minY <= b.maxY && a.maxY >= b.minY && a.minZ <= b.maxZ && a.maxZ >= b.minZ;
-}
-
-class Hitbox : public boundingBox {
-	public:
-		std::vector<Hitbox*> *hitboxes;
-		int id = 0;
-		bool isOverlapped() {
-			for(Hitbox *currentBox : *hitboxes) {
-				if(this->id == currentBox->id) continue;
-				if(intersect(*this, *currentBox)) {
-					return true;
-				}
-			}
-			return false;
-		}
-
-};
-
-class Framebuffer {
-	public:
-	unsigned int framebuffer;
-	unsigned int renderbuffer;
-	unsigned int colorBuffer;
-
-	int width, height;
-
-	Framebuffer(int inWidth, int inHeight) {
-		this->width = inWidth;
-		this->height = inHeight;
-		glGenFramebuffers(1, &this->framebuffer);
-		glBindFramebuffer(GL_FRAMEBUFFER, this->framebuffer);
-
-		glGenTextures(1, &this->colorBuffer);
-		glBindTexture(GL_TEXTURE_2D, this->colorBuffer);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, this->width, this->height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
-
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, this->colorBuffer, 0);
-
-		glGenRenderbuffers(1, &this->renderbuffer);
-		glBindRenderbuffer(GL_RENDERBUFFER, this->renderbuffer);
-		
-		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, this->width, this->height);
-
-		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, this->renderbuffer);
-
-		if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
-			std::cout << "Framebuffer failed to initialise" << std::endl;
-		}
-
-		glBindRenderbuffer(GL_RENDERBUFFER, 0);
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-	}
-
-	void Start(int inWidth, int inHeight) {
-		if(inWidth != this->width || inHeight != this->height) {
-			this->width = inWidth;
-			this->height = inHeight;
-
-			glDeleteFramebuffers(1, &this->framebuffer);
-
-			glGenFramebuffers(1, &this->framebuffer);
-			glBindFramebuffer(GL_FRAMEBUFFER, this->framebuffer);
-
-			glDeleteTextures(1, &this->colorBuffer);
-			glGenTextures(1, &this->colorBuffer);
-
-			glBindTexture(GL_TEXTURE_2D, this->colorBuffer);
-			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, this->width, this->height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
-	
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, this->colorBuffer, 0);
-
-			glDeleteRenderbuffers(1, &this->renderbuffer);
-			glGenRenderbuffers(1, &this->renderbuffer);
-			glBindRenderbuffer(GL_RENDERBUFFER, this->renderbuffer);
-			
-			glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, this->width, this->height);
-
-			glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, this->renderbuffer);
-
-			if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
-				std::cout << "Framebuffer failed to resize" << std::endl;
-			}
-
-		}
-		glBindFramebuffer(GL_FRAMEBUFFER, this->framebuffer);
-	}
-
-	void End() {
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	}
-};
-
-#if HITBOX_VIEW
-class HitboxRenderer {
-	public:
-	unsigned int VAO;
-	unsigned int VBO;
-	unsigned int EBO;
-	Hitbox* hit;
-	HitboxRenderer() {
-		glGenVertexArrays(1, &VAO);
-		glBindVertexArray(VAO);
-		glGenBuffers(1, &VBO);
-		glGenBuffers(1, &EBO);
-
-		glBindBuffer(GL_ARRAY_BUFFER, VBO);
-		glBufferData(GL_ARRAY_BUFFER, 8 * 3 * sizeof(float), NULL, GL_DYNAMIC_DRAW);
-		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)(0));
-		glEnableVertexAttribArray(0);
-
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-		unsigned int indices[] = {
-			0,1,
-			0,3,
-			1,2,
-			2,3,
-
-			4,5,
-			4,7,
-			5,6,
-			6,7,
-
-			0,4,
-			1,5,
-			2,6,
-			3,7,
-
-		};
-		glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-	}
-	void Update() {
-		float vertices[] = {
-			hit->minX, hit->minY, hit->minZ, // bottom left back
-			hit->minX, hit->maxY, hit->minZ, // top left back
-			hit->maxX, hit->maxY, hit->minZ, // top right back
-			hit->maxX, hit->minY, hit->minZ, // bottom right back
-
-			hit->minX, hit->minY, hit->maxZ, // bottom left front
-			hit->minX, hit->maxY, hit->maxZ, // top left front
-			hit->maxX, hit->maxY, hit->maxZ, // top right front
-			hit->maxX, hit->minY, hit->maxZ, // bottom right front
-		};
-		glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), NULL, GL_DYNAMIC_DRAW);
-		glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_DYNAMIC_DRAW);
-	}
-	void Update(Hitbox* next) {
-		hit = next;
-		float vertices[] = {
-			hit->minX, hit->minY, hit->minZ, // bottom left back
-			hit->minX, hit->maxY, hit->minZ, // top left back
-			hit->maxX, hit->maxY, hit->minZ, // top right back
-			hit->maxX, hit->minY, hit->minZ, // bottom right back
-
-			hit->minX, hit->minY, hit->maxZ, // bottom left front
-			hit->minX, hit->maxY, hit->maxZ, // top left front
-			hit->maxX, hit->maxY, hit->maxZ, // top right front
-			hit->maxX, hit->minY, hit->maxZ, // bottom right front
-		};
-		glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), NULL, GL_DYNAMIC_DRAW);
-		glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_DYNAMIC_DRAW);
-	}
-};
-#endif
-
-class Transform {
-	public: 
-	float pitch = 0, yaw = 0, roll = 0;
-	glm::vec3 position = glm::vec3(0,0,0);
-	glm::vec3 scale = glm::vec3(1,1,1);
-
-	glm::mat4 transformMatrix = glm::mat4(1.f);
-	glm::mat4 invTransformMatrix = glm::mat4(1.f);
-	glm::mat4 rotationMatrix = glm::mat4(1.f);
-	glm::mat4 translationMatrix = glm::mat4(1.f);
-	glm::mat4 scaleMatrix = glm::mat4(1.f);
-
-	Transform* parent = NULL;
-
-	void UpdateRotation() {
-		transformMatrix = glm::mat4(1.f);
-		translationMatrix = glm::mat4(1.f);
-		rotationMatrix = glm::mat4(1.f);
-		scaleMatrix = glm::mat4(1.f);
-
-		translationMatrix = glm::translate(translationMatrix, position);
-		rotationMatrix = glm::rotate(rotationMatrix, yaw, glm::vec3(0.f, 1.f, 0.f));
-		rotationMatrix = glm::rotate(rotationMatrix, pitch, glm::vec3(1.f, 0.f, 0.f));
-		rotationMatrix = glm::rotate(rotationMatrix, roll, glm::vec3(0.f, 0.f, 1.f));
-		scaleMatrix = glm::scale(scaleMatrix, scale);
-
-		transformMatrix = translationMatrix * rotationMatrix * scaleMatrix;
-		if(parent != NULL) {
-			transformMatrix = parent->transformMatrix * transformMatrix;
-		}
-		invTransformMatrix = glm::inverse(transformMatrix);
-	}
-};
-
-class Camera : public Transform {
-	public:
-	float fov;
-	Camera() {
-		fov = glm::radians(45.f);
-	}
-};
-
-struct Material {
-	GLuint diffuseTex;
-	GLuint specularTex;
-	GLuint normal;
-	float shininess;
-	bool useLighting = 1;
-
-	// praying i dont forget to add these later and not even religious
-	// i didnt forget to add them later :33
-	glm::vec4 specularColor = glm::vec4(1., 1., 1., 1.);
-	glm::vec4 diffuseColor = glm::vec4(1., 1., 1., 1.);
-	
-	bool useDiffuseTex = 1;
-	bool useSpecularTex = 1;
-	bool useNormalMap = 0;
-};
-enum CULL {
-	NONE = 0,
-	BACK = 1,
-	FRONT = 2,
-};
-
-class Model : public Transform {
-	public:
-	unsigned int VAO;
-	unsigned int VBO;
-	bool usable = false;
-	int vertCount;
-	int cullType = 0;
-	Material mat;
-
-		Model(std::vector<float> obj, Material material) {
-			glGenVertexArrays(1, &VAO);
-			glBindVertexArray(VAO);
-
-			glGenBuffers(1, &VBO);
-			glBindBuffer(GL_ARRAY_BUFFER, VBO);
-			glBufferData(GL_ARRAY_BUFFER, obj.size() * sizeof(float), obj.data(), GL_STATIC_DRAW);
-			glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void*)(0));
-			glEnableVertexAttribArray(0);
-
-			glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void*)(3*sizeof(float)));
-			glEnableVertexAttribArray(1);
-
-			glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void*)(5*sizeof(float)));
-			glEnableVertexAttribArray(2);
-
-			glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void*)(8*sizeof(float)));
-			glEnableVertexAttribArray(3);
-			vertCount = obj.size()/11;
-
-			this->mat = material;
-			usable = true;
-			
-		}
-		Model(Model *m) {
-			this->VAO = m->VAO;
-			this->VBO = m->VBO;
-			this->vertCount = m->vertCount;
-			this->mat = m->mat;
-			usable = true;
-		}
-	
-		void Unload() {
-			glBindVertexArray(0);
-			glDeleteBuffers(1, &VBO);
-			usable = false;
-			glDeleteVertexArrays(1, &VAO);
-		}
-};
-
-class Object : public Model {
-	public:
-		using Model::Model;
-		Hitbox hitbox;
-
-		void UpdateHitbox() {
-			this->hitbox.scale = this->scale;
-			this->hitbox.position = this->position;
-			this->hitbox.Update();
-		}
-};
-
-void getMouseDelta(double mouseX, double mouseY, double *mouseReturnX, double *mouseReturnY) {
+/*void getMouseDelta(float mouseX, float mouseY, float *mouseReturnX, float *mouseReturnY) {
 	static double lastX = 0;
 	static double lastY = 0;
 
@@ -598,103 +28,8 @@ void getMouseDelta(double mouseX, double mouseY, double *mouseReturnX, double *m
 
 	lastX = mouseX;
 	lastY = mouseY;
-}
+}*/
 
-struct Light {
-	glm::vec3 position;
-	glm::vec3 direction;
-	glm::vec3 ambient;
-	glm::vec3 diffuse;
-	glm::vec3 specular;
-
-	float constant;
-	float linear;
-	float quadratic;
-
-	float innerCutOff;
-	float outerCutOff;
-
-	int type;
-};
-
-void setSceneLights(Shader shader, std::vector<Light*> lights) {
-	shader.setUniformInt("lightNumber", lights.size());
-	for(int i = 0; i<lights.size(); i++) {
-		shader.setUniformFloat(("light["+std::to_string(i)+"].constant").c_str(), lights.at(i)->constant);
-		shader.setUniformFloat(("light["+std::to_string(i)+"].linear").c_str(), lights.at(i)->linear);
-		shader.setUniformFloat(("light["+std::to_string(i)+"].quadratic").c_str(), lights.at(i)->quadratic);
-		shader.setUniformInt(("light["+std::to_string(i)+"].type").c_str(), lights.at(i)->type);
-		shader.setUniformVec3(("light["+std::to_string(i)+"].ambient").c_str(), lights.at(i)->ambient);
-		shader.setUniformVec3(("light["+std::to_string(i)+"].diffuse").c_str(), lights.at(i)->diffuse);
-		shader.setUniformVec3(("light["+std::to_string(i)+"].specular").c_str(), lights.at(i)->specular);
-		shader.setUniformVec3(("light["+std::to_string(i)+"].position").c_str(), lights.at(i)->position);
-		shader.setUniformVec3(("light["+std::to_string(i)+"].direction").c_str(), lights.at(i)->direction);
-		shader.setUniformFloat(("light["+std::to_string(i)+"].innerCutOff").c_str(), lights.at(i)->innerCutOff);
-		shader.setUniformFloat(("light["+std::to_string(i)+"].outerCutOff").c_str(), lights.at(i)->outerCutOff);
-	}
-}
-
-void RenderModel(Model model, Shader shader) {
-		model.UpdateRotation();
-		switch(model.cullType) {
-			case 0:
-				glDisable(GL_CULL_FACE);
-				break;
-			case 1:
-				glEnable(GL_CULL_FACE);
-				glCullFace(GL_BACK);
-				break;
-			case 2:
-				glEnable(GL_CULL_FACE);
-				glCullFace(GL_FRONT);
-				break;
-		}
-
-		glUseProgram(shader.programID);
-
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, model.mat.diffuseTex);
-		glActiveTexture(GL_TEXTURE1);
-		glBindTexture(GL_TEXTURE_2D, model.mat.specularTex);
-		glActiveTexture(GL_TEXTURE2);
-		glBindTexture(GL_TEXTURE_2D, model.mat.normal);
-
-		glUniformMatrix4fv(glGetUniformLocation(shader.programID, "modelMat"), 1, GL_FALSE, glm::value_ptr(model.transformMatrix));
-		shader.setUniformFloat("material.shininess", model.mat.shininess);
-
-		shader.setUniformInt("material.useLighting", model.mat.useLighting);
-
-		shader.setUniformInt("material.useDiffuseTex", model.mat.useDiffuseTex);
-		shader.setUniformInt("material.useSpecularTex", model.mat.useSpecularTex);
-		shader.setUniformInt("material.useNormalMap", model.mat.useNormalMap);
-
-		shader.setUniformVec4("material.diffuseColor", model.mat.diffuseColor);
-		shader.setUniformVec4("material.specularColor", model.mat.specularColor);
-
-		shader.setUniformInt("material.diffuse", 0);
-		shader.setUniformInt("material.specular", 1);
-		shader.setUniformInt("material.normal", 2);
-
-
-		glBindVertexArray(model.VAO);
-		glDrawArrays(GL_TRIANGLES, 0, model.vertCount);
-}
-
-float square[] = {
-	-1, -1, 0,
-	1, -1, 0,
-	-1, 1, 0,
-
-	1, -1, 0,
-	1, 1, 0,
-	-1, 1, 0
-};
-
-void key_call(GLFWwindow *win, int key, int scancode, int action, int mods) {
-	if(key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
-		*(bool*)glfwGetWindowUserPointer(win) = !*(bool*)glfwGetWindowUserPointer(win);
-	} 
-}
 
 #if USING_IMGUI
 void Model_ImGui_Window(Model *model, std::string label) {
@@ -765,35 +100,38 @@ float quadVertices[] = {
 
 
 int main() {
-	if(glfwInit() == GL_FALSE) {
-		std::cerr << "Failed to intialise GLFW\n";
+	if(!SDL_Init(SDL_INIT_VIDEO)) {
+		std::cerr << "Failed to intialise SDL: " << SDL_GetError() << std::endl;
 	}
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 0);
+	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 
-	GLFWwindow *window = glfwCreateWindow(INIT_SCR_WIDTH, INIT_SCR_HEIGHT, "voltage", NULL, NULL);
+	SDL_Window *window = SDL_CreateWindow("voltage", INIT_SCR_WIDTH, INIT_SCR_HEIGHT, SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
 	if(window == NULL) {
-		std::cerr << "Failed to create glfw window" << std::endl;
-		glfwTerminate();
+		std::cerr << "Failed to create SDL3 window:" << SDL_GetError() << std::endl;
+		SDL_Quit();
 		return 1;
 	}
-	glfwMakeContextCurrent(window);
-	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+	SDL_GLContext sdlGlContext = SDL_GL_CreateContext(window);
+	if(!sdlGlContext) {
+		std::cerr << "Failed to create SDL3 OpenGL context:" << SDL_GetError() << std::endl;
+		SDL_DestroyWindow(window);
+		SDL_Quit();
+	}
+	SDL_GL_SetSwapInterval(0);
+	SDL_GL_MakeCurrent(window, sdlGlContext);
+	SDL_SetWindowRelativeMouseMode(window, true);
 	GLenum err = glewInit();
 	if(err != GLEW_OK) {
 		std::cerr << "Failed to init GLEW: " << glewGetErrorString(err) << std::endl;
-		glfwTerminate();
+		SDL_DestroyWindow(window);
+		SDL_Quit();
 		return 1;
 	}
-	glfwSwapInterval(0);
 	glViewport(0,0,INIT_SCR_WIDTH,INIT_SCR_HEIGHT);
-	glfwSetFramebufferSizeCallback(window, onWinResize);
 	bool capture = true;
-	glfwSetKeyCallback(window, key_call);
-	glfwSetWindowUserPointer(window, &capture);
-
 	#if USING_IMGUI
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
@@ -802,7 +140,7 @@ int main() {
 	io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
 	
 	// Setup Platform/Renderer backends
-	ImGui_ImplGlfw_InitForOpenGL(window, true);          // Second param install_callback=true will install GLFW callbacks and chain to existing ones.
+	ImGui_ImplSDL3_InitForOpenGL(window, sdlGlContext);
 	ImGui_ImplOpenGL3_Init();
 	#endif
 
@@ -818,8 +156,6 @@ int main() {
 	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2*sizeof(float)));
 	glEnableVertexAttribArray(1);
 	
-
-
 
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_BLEND);
@@ -867,7 +203,7 @@ int main() {
 	material.specularTex = texture2;
 	material.normal = texture3;
 	material.shininess = 32;
-	Object model(load3dCache("resources/cache/dragon.vtcache"), material);
+	Object model(load3dCache("resources/cache/cube.vtcache"), material);
 	model.position.z = -2;
 	model.position.y = -1.8;
 	model.cullType = BACK;
@@ -925,11 +261,11 @@ int main() {
 	lights.push_back(&light);
 	lights.push_back(&sun);
 
-	double mouseX;
-	double mouseY;
+	float mouseX;
+	float mouseY;
 
-	int winX;
-	int winY;
+	int winX = INIT_SCR_WIDTH;
+	int winY = INIT_SCR_HEIGHT;
 
 	glm::vec3 velocity(0,0,0);
 
@@ -937,12 +273,61 @@ int main() {
 	HitboxRenderer hitRenderer;
 	#endif
 
-	double prevTime = glfwGetTime();
+	double prevTime = SDL_GetTicks()/1000.;
 	int frameCount = 0;
 	bool screenShader = true;
 
-	while(!glfwWindowShouldClose(window)) {
-		double currentTime = glfwGetTime();
+	bool running = true;
+	SDL_Event event;
+	while(running) {
+		#if USING_IMGUI
+		ImGui_ImplOpenGL3_NewFrame();
+		ImGui_ImplSDL3_NewFrame();
+		ImGui_ImplSDL3_ProcessEvent(&event);
+		ImGui::NewFrame();
+		#endif
+
+		while(SDL_PollEvent(&event)) {
+			#if USING_IMGUI
+			ImGui_ImplSDL3_ProcessEvent(&event);
+			#endif
+			switch(event.type) {
+				case SDL_EVENT_KEY_DOWN:
+					switch(event.key.scancode) {
+						case SDL_SCANCODE_ESCAPE:
+							capture = !capture;
+							break;
+
+						default:
+							break;
+					}
+					break;
+
+				case SDL_EVENT_QUIT:
+					running = false;
+					break;
+
+				case SDL_EVENT_MOUSE_MOTION:
+					mouseX = event.motion.xrel;
+					mouseY = event.motion.yrel;
+					if(capture) {
+						cam.yaw -= mouseX/300;
+						cam.pitch -= mouseY/300;
+					}
+					break;
+
+				case SDL_EVENT_WINDOW_RESIZED:
+					winX = event.window.data1;
+					winY = event.window.data2;
+					glViewport(0, 0, winX, winY);
+					break;
+
+				default:
+					break;
+			}
+		}
+		const bool *keyStates = SDL_GetKeyboardState(nullptr);
+		double currentTime = SDL_GetTicks()/1000.;
 		frameCount++;
 		if((currentTime - prevTime) >= 1) {
 			std::cout << frameCount << std::endl;
@@ -953,15 +338,10 @@ int main() {
 		
 
 
-		#if USING_IMGUI
-		ImGui_ImplOpenGL3_NewFrame();
-		ImGui_ImplGlfw_NewFrame();
-		ImGui::NewFrame();
-		#endif
 		if(capture) {
-			glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+			SDL_SetWindowRelativeMouseMode(window, true);
 		} else {
-			glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+			SDL_SetWindowRelativeMouseMode(window, false);
 		}
 
 		#if USING_IMGUI
@@ -977,11 +357,6 @@ int main() {
 		ImGui::End();
 		#endif
 
-
-		glfwGetCursorPos(window, &mouseX, &mouseY);
-		getMouseDelta(mouseX, mouseY, &mouseX, &mouseY);
-		glfwGetWindowSize(window, &winX, &winY);
-
 		if(screenShader) {
 		mainFramebuffer.Start(winX, winY);
 		}
@@ -991,7 +366,7 @@ int main() {
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		
-		if(glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
+		if(keyStates[SDL_SCANCODE_S]) {
 			//velocity.z += cos(cam.yaw)*0.03*cos(cam.pitch);
 			//velocity.x += sin(cam.yaw)*0.03*cos(cam.pitch);
 
@@ -1000,7 +375,7 @@ int main() {
 			velocity.z += cos(cam.yaw)*0.03;
 			velocity.x += sin(cam.yaw)*0.03;
 		}
-		if(glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
+		if(keyStates[SDL_SCANCODE_W]) {
 			//velocity.z -= cos(cam.yaw)*0.03*cos(cam.pitch);
 			//velocity.x -= sin(cam.yaw)*0.03*cos(cam.pitch);
 
@@ -1009,11 +384,11 @@ int main() {
 			velocity.z -= cos(cam.yaw)*0.03;
 			velocity.x -= sin(cam.yaw)*0.03;
 		}
-		if(glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+		if(keyStates[SDL_SCANCODE_A]) {
 			velocity.z += sin(cam.yaw)*0.02;
 			velocity.x -= cos(cam.yaw)*0.02;
 		}
-		if(glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+		if(keyStates[SDL_SCANCODE_D]) {
 			velocity.z -= sin(cam.yaw)*0.02;
 			velocity.x += cos(cam.yaw)*0.02;
 		}
@@ -1060,22 +435,22 @@ int main() {
 		cameraFloorBound.position.y -=0.1;
 		cameraFloorBound.Update();
 		if(cameraFloorBound.isOverlapped()) {
-			if(glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
+			if(keyStates[SDL_SCANCODE_SPACE]) {
 				velocity.y = 0.1;
 			}
 		}
 
-		if(glfwGetKey(window, GLFW_KEY_COMMA) == GLFW_PRESS) {
-			cam.fov += glm::radians(1.);
+		if(keyStates[SDL_SCANCODE_COMMA]) {
+			cam.fov += glm::radians(.5);
 		}
-		if(glfwGetKey(window, GLFW_KEY_PERIOD) == GLFW_PRESS) {
-			cam.fov -= glm::radians(1.);
+		if(keyStates[SDL_SCANCODE_PERIOD]) {
+			cam.fov -= glm::radians(.5);
 		}
 
-		if(capture) {
-			cam.yaw -= mouseX/300;
-			cam.pitch -= mouseY/300;
-		}
+		//if(capture) {
+		//	cam.yaw -= mouseX/300;
+		//	cam.pitch -= mouseY/300;
+		//}
 		if(cam.pitch > 1.5708) cam.pitch = 1.5708;
 		if(cam.pitch < -1.5708) cam.pitch = -1.5708;
 
@@ -1143,10 +518,11 @@ int main() {
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 		#endif
 
-		glfwSwapBuffers(window);
-		glfwPollEvents();
+		SDL_GL_SwapWindow(window);
 	}
+	SDL_GL_DestroyContext(sdlGlContext);
+	SDL_DestroyWindow(window);
+	SDL_Quit();
 
-	glfwTerminate();
 	return 0;
 }

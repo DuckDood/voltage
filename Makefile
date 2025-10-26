@@ -1,4 +1,4 @@
-all: obj/ build/ obj/main.o obj/stb_image.o build/voltage obj/objCache.o build/cacheObj 
+all: obj/ build/ obj/main.o obj/voltage.o build/voltage obj/objCache.o build/cacheObj 
 
 clean:
 	rm -r obj/ build/ 
@@ -10,14 +10,14 @@ obj/:
 build/: 
 	mkdir -p build/
 
-obj/main.o: src/main.cpp
+obj/main.o: src/main.cpp src/defines.h
 	${CXX} src/main.cpp -c -o obj/main.o  -Iinclude/ 
 
-obj/stb_image.o: src/stb_image.cpp
-	${CXX} src/stb_image.cpp -c -o obj/stb_image.o  
+obj/voltage.o: src/voltage.cpp src/defines.h
+	${CXX} src/voltage.cpp -c -o obj/voltage.o  -Iinclude/ 
 
-build/voltage: obj/main.o obj/stb_image.o static/imgui/imgui_demo.o static/imgui/imgui_draw.o static/imgui/imgui_impl_glfw.o static/imgui/imgui_impl_opengl3.o static/imgui/imgui.o static/imgui/imgui_tables.o static/imgui/imgui_widgets.o 
-	${CXX} obj/main.o obj/stb_image.o static/imgui/imgui_demo.o static/imgui/imgui_draw.o static/imgui/imgui_impl_glfw.o static/imgui/imgui_impl_opengl3.o static/imgui/imgui.o static/imgui/imgui_tables.o static/imgui/imgui_widgets.o  -o build/voltage -lGL -lGLEW -lglfw  
+build/voltage: obj/main.o obj/voltage.o static/imgui/imgui_demo.o static/imgui/imgui_draw.o static/imgui/imgui_impl_sdl3.o static/imgui/imgui_impl_opengl3.o static/imgui/imgui.o static/imgui/imgui_tables.o static/imgui/imgui_widgets.o static/stb_image.o 
+	${CXX} obj/main.o obj/voltage.o static/imgui/imgui_demo.o static/imgui/imgui_draw.o static/imgui/imgui_impl_sdl3.o static/imgui/imgui_impl_opengl3.o static/imgui/imgui.o static/imgui/imgui_tables.o static/imgui/imgui_widgets.o static/stb_image.o  -o build/voltage -lGL -lGLEW -lSDL3  
 
 obj/objCache.o: src/objCache.cpp
 	${CXX} src/objCache.cpp -c -o obj/objCache.o  
