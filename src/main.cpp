@@ -259,7 +259,6 @@ int main() {
 	sun.direction = glm::vec3(0.f, 1.f, 0.0f);
 	
 	lights.push_back(&light);
-	lights.push_back(&sun);
 
 	float mouseX;
 	float mouseY;
@@ -348,7 +347,7 @@ int main() {
 		Model_ImGui_Window(&model, "Model");
 		Model_ImGui_Window(&floor, "Model2");
 
-		Light_ImGui_Window(&sun, "sun");
+		//Light_ImGui_Window(&sun, "sun");
 		Light_ImGui_Window(&light, "light");
 	
 

@@ -4,6 +4,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <fstream>
+#include <filesystem>
 #include <iostream>
 
 class Shader {
@@ -16,11 +17,33 @@ class Shader {
 
 		std::ifstream vert(vertPath);
 		std::string vertStr = "";
-		for(std::string line; std::getline(vert, line); vertStr+=line + "\n");
+		for(std::string line; std::getline(vert, line); vertStr+=line + "\n") {
+			int nonSpace = line.find_first_not_of(" \t");
+			if(nonSpace != std::string::npos) {
+				if(line.substr(nonSpace, 14) == "//!voltinclude") {
+					std::string path = std::filesystem::path(vertPath).parent_path().string() + "/" + line.substr(nonSpace+15);
+					std::ifstream inc(path);
+					std::string out;
+					for(std::string iline; std::getline(inc, iline); out+=iline + "\n");
+					line = out;
+				}
+			}
+		}
 
 		std::ifstream frag(fragPath);
 		std::string fragStr = "";
-		for(std::string line; std::getline(frag, line);fragStr+=line + "\n");
+		for(std::string line; std::getline(frag, line);fragStr+=line + "\n") {
+			int nonSpace = line.find_first_not_of(" \t");
+			if(nonSpace != std::string::npos) {
+				if(line.substr(nonSpace, 14) == "//!voltinclude") {
+					std::string path = std::filesystem::path(fragPath).parent_path().string() + "/" + line.substr(nonSpace+15);
+					std::ifstream inc(path);
+					std::string out;
+					for(std::string iline; std::getline(inc, iline); out+=iline + "\n");
+					line = out;
+				}
+			}
+		}
 
 		const char* vertCStr = vertStr.c_str();
 		const char* fragCStr = fragStr.c_str();

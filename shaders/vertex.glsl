@@ -4,20 +4,8 @@ layout (location = 1) in vec2 texCoords;
 layout (location = 2) in vec3 normals;
 layout (location = 3) in vec3 tangent;
 
-struct Material {
-	float shininess;
-	bool useLighting;
-	sampler2D diffuse;
-	sampler2D specular;
-	sampler2D normal;
+//!voltinclude include/material.glsl
 
-	vec4 specularColor;
-	vec4 diffuseColor;
-	
-	bool useDiffuseTex;
-	bool useSpecularTex;
-	bool useNormalMap;
-};
 uniform Material material;
 
 uniform mat4 modelMat;

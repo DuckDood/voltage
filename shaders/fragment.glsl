@@ -1,19 +1,6 @@
 #version 330 core
 
-struct Material {
-	float shininess;
-	bool useLighting;
-	sampler2D diffuse;
-	sampler2D specular;
-	sampler2D normal;
-
-	vec4 specularColor;
-	vec4 diffuseColor;
-	
-	bool useDiffuseTex;
-	bool useSpecularTex;
-	bool useNormalMap;
-};
+//!voltinclude include/material.glsl
 
 layout (location = 0) out vec4 FragColor;
 
@@ -198,28 +185,25 @@ uniform int lightNumber;
 void main() {
 	vec4 result = vec4(0.,0.,0.,0.);
 
-	vec4 texColorVec4;
-	vec4 specColorVec4;
+	vec4 texColorVec4 = vec4(1.,1.,1.,1.);
+	vec4 specColorVec4 = vec4(1.,1.,1.,1.);
 
 	if(material.useDiffuseTex) {
-		texColorVec4 = texture(material.diffuse, texCoord);
-		texColorVec4 *= material.diffuseColor;
-	} else {
-		texColorVec4 = material.diffuseColor;
+		texColorVec4 *= texture(material.diffuse, texCoord);
 	}
+	texColorVec4 *= material.diffuseColor;
+
 	vec4 texColor = texColorVec4;
 
 
 	if(material.useLighting) {
 		if(material.useSpecularTex) {
-			specColorVec4 = texture(material.specular, texCoord);
-			specColorVec4 *= material.specularColor;
-		} else {
-			specColorVec4 = material.specularColor;
+			specColorVec4 *= texture(material.specular, texCoord);
 		}
+		specColorVec4 *= material.specularColor;
 		vec4 specColor = specColorVec4;
 
-		vec3 usedNormal;
+		vec3 usedNormal = normal;
 		if(material.useNormalMap) {
 			usedNormal = vec3(texture(material.normal, texCoord));
 
@@ -228,8 +212,6 @@ void main() {
 			usedNormal = TBN*usedNormal;
 
 			usedNormal = normalize(usedNormal);
-		} else {
-			usedNormal = normal;
 		}
 
 		for(int i = 0; i < lightNumber; i++) {
