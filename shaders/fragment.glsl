@@ -4,14 +4,6 @@
 
 layout (location = 0) out vec4 FragColor;
 
-in vec2 texCoord;
-in vec3 normal;
-in vec3 FragPos;
-
-in mat3 TBN;
-
-uniform vec3 viewPos;
-uniform Material material;
 
 struct Light {
 	vec3 position;
@@ -31,14 +23,14 @@ struct Light {
 };
 
 
-vec4 resolvePointLight(Light pointLight, Material objectMaterial, vec4 texColor, vec4 specColor, vec3 objectNormal) {
+vec4 resolvePointLight(Light pointLight, Material objectMaterial, vec4 texColor, vec4 specColor, vec3 objectNormal, vec3 viewPos, vec3 fragPos) {
 	//vec4 texColorVec4 = texture(objectMaterial.diffuse, textureCoord);
 	//vec3 texColor = vec3(texColorVec4);
 
 	//vec4 specColorVec4 = texture(objectMaterial.specular, textureCoord);
 	//vec3 specColor = vec3(specColorVec4);
 
-	float dist = length(pointLight.position - FragPos);
+	float dist = length(pointLight.position - fragPos);
 	float attenuation = 1. / (pointLight.constant + pointLight.linear * dist + pointLight.quadratic * (dist * dist));
 
 	vec4 result;
@@ -49,13 +41,13 @@ vec4 resolvePointLight(Light pointLight, Material objectMaterial, vec4 texColor,
 	// diffuse
 	vec3 norm = normalize(objectNormal);
 
-	vec3 lightDir = normalize(pointLight.position - FragPos);
+	vec3 lightDir = normalize(pointLight.position - fragPos);
 
 	float diff = max(dot(norm, lightDir), 0.0);
 	vec4 diffuse = vec4(pointLight.diffuse, 0.) * (diff * texColor);
 
 	// specular
-	vec3 viewDir = normalize(viewPos - FragPos);
+	vec3 viewDir = normalize(viewPos - fragPos);
 	//vec3 reflectDir = reflect(-lightDir, norm);
 	vec3 halfDir = normalize(lightDir + viewDir);
 
@@ -81,7 +73,7 @@ vec4 resolvePointLight(Light pointLight, Material objectMaterial, vec4 texColor,
 	return result;
 }
 
-vec4 resolveDirectionalLight(Light directionLight, Material objectMaterial, vec4 texColor, vec4 specColor, vec3 objectNormal) {
+vec4 resolveDirectionalLight(Light directionLight, Material objectMaterial, vec4 texColor, vec4 specColor, vec3 objectNormal, vec3 viewPos, vec3 fragPos) {
 	//vec4 texColorVec4 = texture(objectMaterial.diffuse, textureCoord);
 	//vec3 texColor = vec3(texColorVec4);
 
@@ -102,7 +94,7 @@ vec4 resolveDirectionalLight(Light directionLight, Material objectMaterial, vec4
 	vec4 diffuse = vec4(directionLight.diffuse, 1.) * (diff * texColor);
 
 	// specular
-	vec3 viewDir = normalize(viewPos - FragPos);
+	vec3 viewDir = normalize(viewPos - fragPos);
 	//vec3 reflectDir = reflect(-lightDir, norm);
 	vec3 halfDir = normalize(lightDir + viewDir);
 
@@ -115,14 +107,14 @@ vec4 resolveDirectionalLight(Light directionLight, Material objectMaterial, vec4
 	return result;
 }
 
-vec4 resolveSpotlight(Light spotLight, Material objectMaterial, vec4 texColor, vec4 specColor, vec3 objectNormal) {
+vec4 resolveSpotlight(Light spotLight, Material objectMaterial, vec4 texColor, vec4 specColor, vec3 objectNormal, vec3 viewPos, vec3 fragPos) {
 	//vec4 texColorVec4 = texture(objectMaterial.diffuse, textureCoord);
 	//vec3 texColor = vec3(texColorVec4);
 
 	//vec4 specColorVec4 = texture(objectMaterial.specular, textureCoord);
 	//vec3 specColor = vec3(specColorVec4);
 
-	float dist = length(spotLight.position - FragPos);
+	float dist = length(spotLight.position - fragPos);
 	float attenuation = 1. / (spotLight.constant + spotLight.linear * dist + spotLight.quadratic * (dist * dist));
 
 	vec4 result;
@@ -133,7 +125,7 @@ vec4 resolveSpotlight(Light spotLight, Material objectMaterial, vec4 texColor, v
 	// diffuse
 	vec3 norm = normalize(objectNormal);
 
-	vec3 lightDir = normalize(spotLight.position - FragPos);
+	vec3 lightDir = normalize(spotLight.position - fragPos);
 
 	float theta = dot(lightDir, normalize(spotLight.direction));
 	float epsilon = spotLight.innerCutOff - spotLight.outerCutOff;
@@ -145,7 +137,7 @@ vec4 resolveSpotlight(Light spotLight, Material objectMaterial, vec4 texColor, v
 		vec4 diffuse = vec4(spotLight.diffuse, 0.) * (diff * texColor);
 
 		// specular
-		vec3 viewDir = normalize(viewPos - FragPos);
+		vec3 viewDir = normalize(viewPos - fragPos);
 		//vec3 reflectDir = reflect(-lightDir, norm);
 		vec3 halfDir = normalize(lightDir + viewDir);
     	
@@ -178,6 +170,15 @@ vec4 resolveSpotlight(Light spotLight, Material objectMaterial, vec4 texColor, v
 	//}
 	return result;
 }
+
+in vec2 texCoord;
+in vec3 normal;
+in vec3 FragPos;
+
+in mat3 TBN;
+
+uniform vec3 viewPos;
+uniform Material material;
 
 uniform Light light[64];
 uniform int lightNumber;
@@ -217,13 +218,13 @@ void main() {
 		for(int i = 0; i < lightNumber; i++) {
 			switch(light[i].type) {
 				case 0:
-				result += resolveDirectionalLight(light[i], material, texColor, specColor, usedNormal);
+				result += resolveDirectionalLight(light[i], material, texColor, specColor, usedNormal, viewPos, FragPos);
 				break;
 				case 1:
-				result += resolvePointLight(light[i], material, texColor, specColor, usedNormal);
+				result += resolvePointLight(light[i], material, texColor, specColor, usedNormal, viewPos, FragPos);
 				break;
 				case 2:
-				result += resolveSpotlight(light[i], material, texColor, specColor, usedNormal);
+				result += resolveSpotlight(light[i], material, texColor, specColor, usedNormal, viewPos, FragPos);
 				break;
 			}
 		}
