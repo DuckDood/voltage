@@ -4,7 +4,7 @@ in vec2 v_texcoord;
 out vec4 fragColor;
 uniform sampler2D tex;
 
-mat4 bayer = mat4(
+float bayer[4*4] = float[4*4](
 	0.,8.,2.,10.,
 	12.,4.,14.,6.,
 	3.,11.,1.,9.,
@@ -12,14 +12,16 @@ mat4 bayer = mat4(
 );
 
 void main() {
-	float reduction = 3.;
+	float reduction =  2.;
+
+	reduction -= 1.;
 
     vec4 pixColor = texture2D(tex, v_texcoord);
 
-	//pixColor = vec4(vec3(pixColor.x * 0.3 + pixColor.y * 0.6 + pixColor.z * 0.1), 1.);
+	pixColor = vec4(vec3(pixColor.x * 0.3 + pixColor.y * 0.6 + pixColor.z * 0.1), 1.);
 
 	vec2 pixelPos = vec2(gl_FragCoord);
-	float diff = 0.5-((1./16.) * bayer[int(pixelPos.y)%4][int(pixelPos.x)%4]);
+	float diff = 0.5-((1./16.) * bayer[(int(pixelPos.y)%4 * 4) + (int(pixelPos.x)%4)]);
 	
 	pixColor += vec4(vec3(diff/reduction), 0.);
 

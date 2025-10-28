@@ -19,18 +19,6 @@
 #define INIT_SCR_HEIGHT 768
 
 
-/*void getMouseDelta(float mouseX, float mouseY, float *mouseReturnX, float *mouseReturnY) {
-	static double lastX = 0;
-	static double lastY = 0;
-
-	*mouseReturnX = mouseX - lastX;
-	*mouseReturnY = mouseY - lastY;
-
-	lastX = mouseX;
-	lastY = mouseY;
-}*/
-
-
 #if USING_IMGUI
 void Model_ImGui_Window(Model *model, std::string label) {
 	ImGui::Begin(label.c_str(), 0, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize);
@@ -281,6 +269,7 @@ int main() {
 	double prevTime = SDL_GetTicks()/1000.;
 	int frameCount = 0;
 	bool screenShader = true;
+	int sensitivity = 1;
 
 	bool running = true;
 	SDL_Event event;
@@ -316,8 +305,8 @@ int main() {
 					mouseX = event.motion.xrel;
 					mouseY = event.motion.yrel;
 					if(capture) {
-						cam.yaw -= mouseX/300;
-						cam.pitch -= mouseY/300;
+						cam.yaw -= mouseX/500 * sensitivity;
+						cam.pitch -= mouseY/500 * sensitivity;
 					}
 					break;
 
