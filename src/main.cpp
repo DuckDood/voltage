@@ -189,6 +189,11 @@ int main() {
 	stbi_image_free(data);
 
 	Framebuffer mainFramebuffer(INIT_SCR_WIDTH, INIT_SCR_HEIGHT);
+	glBindTexture(GL_TEXTURE_2D, mainFramebuffer.colorBuffer);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+	float borderColor[] = { 0.0f, 0.0f, 0.0f, 1.0f };
+	glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
 
 	std::vector<Hitbox*> hitboxes;
 
@@ -273,7 +278,9 @@ int main() {
 
 	bool running = true;
 	SDL_Event event;
+	int c = 0;
 	while(running) {
+		c++;
 		#if USING_IMGUI
 		ImGui_ImplOpenGL3_NewFrame();
 		ImGui_ImplSDL3_NewFrame();
@@ -473,6 +480,7 @@ int main() {
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, mainFramebuffer.colorBuffer);
 		glUseProgram(screen.programID);
+		glUniform1f(glGetUniformLocation(screen.programID, "time"), c);
 		
 		glBindVertexArray(qVAO);
 		glDrawArrays(GL_TRIANGLES, 0, 6);
