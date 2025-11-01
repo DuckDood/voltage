@@ -60,7 +60,6 @@ void main() {
 	pixColor /= 8;
 	pixColor += vec4(vec3(rand(uv2 + float(int(time)%100) + pixColor2.zy + rad)), 1) * 0.02;
 
-
 	fragColor = pixColor;
 }
 

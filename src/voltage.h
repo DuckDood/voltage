@@ -40,11 +40,12 @@ class Framebuffer {
 	public:
 	unsigned int framebuffer;
 	unsigned int renderbuffer;
-	unsigned int colorBuffer;
+	std::vector<unsigned int> colorBuffers;
+	std::vector<GLenum> bufferTypes;
 
 	int width, height;
 
-	Framebuffer(int inWidth, int inHeight);
+	Framebuffer(int inWidth, int inHeight, std::vector<GLenum> bufferTypes);
 
 	void Start(int inWidth, int inHeight);
 

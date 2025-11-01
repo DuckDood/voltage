@@ -188,8 +188,9 @@ int main() {
 
 	stbi_image_free(data);
 
-	Framebuffer mainFramebuffer(INIT_SCR_WIDTH, INIT_SCR_HEIGHT);
-	glBindTexture(GL_TEXTURE_2D, mainFramebuffer.colorBuffer);
+	std::vector<GLenum> colorAttach = {GL_COLOR_ATTACHMENT0};
+	Framebuffer mainFramebuffer(INIT_SCR_WIDTH, INIT_SCR_HEIGHT, colorAttach);
+	glBindTexture(GL_TEXTURE_2D, mainFramebuffer.colorBuffers[0]);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
 	float borderColor[] = { 0.0f, 0.0f, 0.0f, 1.0f };
@@ -478,9 +479,10 @@ int main() {
 		mainFramebuffer.End();
 		glDisable(GL_DEPTH_TEST);
 		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, mainFramebuffer.colorBuffer);
+		glBindTexture(GL_TEXTURE_2D, mainFramebuffer.colorBuffers[0]);
 		glUseProgram(screen.programID);
 		glUniform1f(glGetUniformLocation(screen.programID, "time"), c);
+		glUniform1i(glGetUniformLocation(screen.programID, "tex"), 0);
 		
 		glBindVertexArray(qVAO);
 		glDrawArrays(GL_TRIANGLES, 0, 6);

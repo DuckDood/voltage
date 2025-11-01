@@ -270,20 +270,25 @@ bool Hitbox::isOverlapped() {
 
 
 
-Framebuffer::Framebuffer(int inWidth, int inHeight) {
+Framebuffer::Framebuffer(int inWidth, int inHeight, std::vector<GLenum> bufferTypes) {
 		this->width = inWidth;
 		this->height = inHeight;
+		this->bufferTypes = bufferTypes;
+		this->colorBuffers.resize(this->bufferTypes.size());
 		glGenFramebuffers(1, &this->framebuffer);
 		glBindFramebuffer(GL_FRAMEBUFFER, this->framebuffer);
 
-		glGenTextures(1, &this->colorBuffer);
-		glBindTexture(GL_TEXTURE_2D, this->colorBuffer);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, this->width, this->height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+		glGenTextures(this->colorBuffers.capacity(), this->colorBuffers.data());
+		for(int i = 0; i < this->colorBuffers.size(); i++) {
+			GLint currentBuffer = this->colorBuffers.at(i);
+			glBindTexture(GL_TEXTURE_2D, currentBuffer);
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, this->width, this->height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
 
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, this->colorBuffer, 0);
+			glFramebufferTexture2D(GL_FRAMEBUFFER, bufferTypes.at(i), GL_TEXTURE_2D, currentBuffer, 0);
+		}
 
 		glGenRenderbuffers(1, &this->renderbuffer);
 		glBindRenderbuffer(GL_RENDERBUFFER, this->renderbuffer);
@@ -295,6 +300,7 @@ Framebuffer::Framebuffer(int inWidth, int inHeight) {
 		if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
 			std::cout << "Framebuffer failed to initialise" << std::endl;
 		}
+		glDrawBuffers(this->bufferTypes.size(), this->bufferTypes.data());
 
 		glBindRenderbuffer(GL_RENDERBUFFER, 0);
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -311,16 +317,27 @@ void Framebuffer::Start(int inWidth, int inHeight) {
 		glGenFramebuffers(1, &this->framebuffer);
 		glBindFramebuffer(GL_FRAMEBUFFER, this->framebuffer);
 
-		glDeleteTextures(1, &this->colorBuffer);
-		glGenTextures(1, &this->colorBuffer);
+		glDeleteTextures(this->colorBuffers.capacity(), this->colorBuffers.data());
+		glGenTextures(this->colorBuffers.capacity(), this->colorBuffers.data());
 
-		glBindTexture(GL_TEXTURE_2D, this->colorBuffer);
+		/*glBindTexture(GL_TEXTURE_2D, this->colorBuffer);
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, this->width, this->height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
 
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, this->colorBuffer, 0);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, this->colorBuffer, 0);*/
+		for(int i = 0; i < this->colorBuffers.size(); i++) {
+			GLint currentBuffer = this->colorBuffers.at(i);
+			glBindTexture(GL_TEXTURE_2D, currentBuffer);
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, this->width, this->height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+			glFramebufferTexture2D(GL_FRAMEBUFFER, bufferTypes.at(i), GL_TEXTURE_2D, currentBuffer, 0);
+		}
+		glDrawBuffers(this->bufferTypes.size(), this->bufferTypes.data());
 
 		glDeleteRenderbuffers(1, &this->renderbuffer);
 		glGenRenderbuffers(1, &this->renderbuffer);
