@@ -17,7 +17,6 @@ class float2{
 	float2 operator-(float2 b) {
 		return float2(this->x - b.x, this->y - b.y);
 	}
-		#pragma omp parallel for
 	float2 operator*(float2 b) {
 		return float2(this->x * b.x, this->y * b.y);
 	}
@@ -80,7 +79,6 @@ std::vector<float> LoadObjFile(std::string obj) {
 
 	std::stringstream lines(obj);
 	std::string line;
-	int a=0;
 
 	while(std::getline(lines, line, '\n')) {
 		if(line.length() < 2) continue;
@@ -142,7 +140,7 @@ std::vector<float> LoadObjFile(std::string obj) {
 				c++;
 			}
 
-			for(int i = 0; i<faceIndexGroups.size(); i++) {
+			for(unsigned long int i = 0; i<faceIndexGroups.size(); i++) {
 				std::vector<int> indexGroup;
 				std::stringstream thisFaceGroup(faceIndexGroups[i]);
 				while(std::getline(thisFaceGroup, word, '/')) {
@@ -172,7 +170,7 @@ std::vector<float> LoadObjFile(std::string obj) {
 	// tangents calculations cause im NOT messing with the stuff up there
 	// i kinda get how it works up there but i just used the sebastian lague logic ok
 	// https://www.youtube.com/watch?v=yyJ-hdISgnw
-	for(int i = 0; i < triPoints.size(); i+=3) {
+	for(unsigned long int i = 0; i < triPoints.size(); i+=3) {
 		float3 pos1 = triPoints.at(i);
 		float3 pos2 = triPoints.at(i+1);
 		float3 pos3 = triPoints.at(i+2);
@@ -199,7 +197,7 @@ std::vector<float> LoadObjFile(std::string obj) {
 	}
 
 	std::vector<float> value;
-	for(int i = 0; i < triPoints.size(); i++) {
+	for(unsigned long int i = 0; i < triPoints.size(); i++) {
 		value.push_back(triPoints.at(i).x);
 		value.push_back(triPoints.at(i).y);
 		value.push_back(triPoints.at(i).z);
@@ -279,7 +277,7 @@ Framebuffer::Framebuffer(int inWidth, int inHeight, std::vector<GLenum> bufferTy
 		glBindFramebuffer(GL_FRAMEBUFFER, this->framebuffer);
 
 		glGenTextures(this->colorBuffers.capacity(), this->colorBuffers.data());
-		for(int i = 0; i < this->colorBuffers.size(); i++) {
+		for(unsigned long int i = 0; i < this->colorBuffers.size(); i++) {
 			GLint currentBuffer = this->colorBuffers.at(i);
 			glBindTexture(GL_TEXTURE_2D, currentBuffer);
 			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, this->width, this->height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
@@ -327,7 +325,7 @@ void Framebuffer::Start(int inWidth, int inHeight) {
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
 		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, this->colorBuffer, 0);*/
-		for(int i = 0; i < this->colorBuffers.size(); i++) {
+		for(unsigned long int i = 0; i < this->colorBuffers.size(); i++) {
 			GLint currentBuffer = this->colorBuffers.at(i);
 			glBindTexture(GL_TEXTURE_2D, currentBuffer);
 			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, this->width, this->height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
@@ -494,7 +492,7 @@ void Object::UpdateHitbox() {
 
 void setSceneLights(Shader shader, std::vector<Light*> lights) {
 	shader.setUniformInt("lightNumber", lights.size());
-	for(int i = 0; i<lights.size(); i++) {
+	for(long unsigned int i = 0; i<lights.size(); i++) {
 		shader.setUniformFloat(("light["+std::to_string(i)+"].constant").c_str(), lights.at(i)->constant);
 		shader.setUniformFloat(("light["+std::to_string(i)+"].linear").c_str(), lights.at(i)->linear);
 		shader.setUniformFloat(("light["+std::to_string(i)+"].quadratic").c_str(), lights.at(i)->quadratic);

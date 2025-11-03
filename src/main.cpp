@@ -93,7 +93,7 @@ int main() {
 	}
 
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 0);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
 	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 
 	SDL_Window *window = SDL_CreateWindow("voltage", INIT_SCR_WIDTH, INIT_SCR_HEIGHT, SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
@@ -117,6 +117,7 @@ int main() {
 		SDL_Quit();
 		return 1;
 	}
+	SDL_GL_SetSwapInterval(0);
 	glViewport(0,0,INIT_SCR_WIDTH,INIT_SCR_HEIGHT);
 	bool capture = true;
 	#if USING_IMGUI
@@ -200,13 +201,15 @@ int main() {
 
 	Material material;
 	material.diffuseTex = texture;
-	material.specularTex = texture2;
+	material.specularTex = texture;
 	material.normal = texture3;
 	material.shininess = 32;
 	Object model(load3dCache("resources/cache/cube.vtcache"), material);
 	model.position.z = -2;
 	model.position.y = -1.8;
 	model.cullType = BACK;
+	material.diffuseTex = texture2;
+	material.specularTex = texture2;
 
 	Object floor(load3dCache("resources/cache/cube.vtcache"), material);
 	hitboxes.push_back(&model.hitbox);

@@ -18,7 +18,7 @@ class Shader {
 		std::ifstream vert(vertPath);
 		std::string vertStr = "";
 		for(std::string line; std::getline(vert, line); vertStr+=line + "\n") {
-			int nonSpace = line.find_first_not_of(" \t");
+			const long unsigned int nonSpace = line.find_first_not_of(" \t");
 			if(nonSpace != std::string::npos) {
 				if(line.substr(nonSpace, 14) == "//!voltinclude") {
 					std::string path = std::filesystem::path(vertPath).parent_path().string() + "/" + line.substr(nonSpace+15);
@@ -33,7 +33,7 @@ class Shader {
 		std::ifstream frag(fragPath);
 		std::string fragStr = "";
 		for(std::string line; std::getline(frag, line);fragStr+=line + "\n") {
-			int nonSpace = line.find_first_not_of(" \t");
+			const long unsigned int nonSpace = line.find_first_not_of(" \t");
 			if(nonSpace != std::string::npos) {
 				if(line.substr(nonSpace, 14) == "//!voltinclude") {
 					std::string path = std::filesystem::path(fragPath).parent_path().string() + "/" + line.substr(nonSpace+15);
