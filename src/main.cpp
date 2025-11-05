@@ -204,7 +204,7 @@ int main() {
 	material.specularTex = texture;
 	material.normal = texture3;
 	material.shininess = 32;
-	Object model(load3dCache("resources/cache/cube.vtcache"), material);
+	Object model(load3dCache("resources/cache/dragon.vtcache"), material);
 	model.position.z = -2;
 	model.position.y = -1.8;
 	model.cullType = BACK;
@@ -486,7 +486,7 @@ int main() {
 		glUseProgram(screen.programID);
 		glUniform1f(glGetUniformLocation(screen.programID, "time"), c);
 		glUniform1i(glGetUniformLocation(screen.programID, "tex"), 0);
-		
+
 		glBindVertexArray(qVAO);
 		glDrawArrays(GL_TRIANGLES, 0, 6);
 		glEnable(GL_DEPTH_TEST);

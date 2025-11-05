@@ -1,11 +1,39 @@
 adddir obj/
+adddir static/imgui/obj/
+adddir static/stb_image/obj/
 adddir build/
 cdir obj/
+# cdir static/imgui/obj/
+# cdir static/stb_image/obj/
 cdir build/
+
+noall
+make
+cleanstatic:
+	rm -r static/imgui/obj/ static/stb_image/obj/
+.PHONY: cleanstatic
+end
 
 dep GL
 dep GLEW
 dep SDL3
+
+oname static/imgui/obj/
+sname static/imgui/src/
+include imgui_demo.cpp
+include imgui_draw.cpp
+include imgui_impl_sdl3.cpp
+include imgui_impl_opengl3.cpp
+include imgui.cpp
+include imgui_tables.cpp
+include imgui_widgets.cpp
+oname static/stb_image/obj/
+sname static/stb_image/src/
+
+incflag -Iinclude/
+include stb_image.c
+sname src/
+oname obj/
 
 checknext defines.h
 incflag -Iinclude/
@@ -15,21 +43,10 @@ checknext defines.h
 incflag -Iinclude/
 include voltage.cpp
 
-oname static/
-abuild imgui/imgui_demo.o
-abuild imgui/imgui_draw.o
-abuild imgui/imgui_impl_sdl3.o
-abuild imgui/imgui_impl_opengl3.o
-abuild imgui/imgui.o
-abuild imgui/imgui_tables.o
-abuild imgui/imgui_widgets.o
-abuild stb_image.o
-
 build voltage
 
 rmbuild /
 
-oname obj/
 include objCache.cpp
 
 rmdep GL
