@@ -245,7 +245,7 @@ int main() {
 	Light light;
 	light.type = 1;
 	light.ambient = glm::vec3(0.2,0.2,0.2);
-	light.diffuse = glm::vec3(1.5, 1.5 ,1.5);
+	light.diffuse = glm::vec3(1, 1 ,1);
 	light.specular = glm::vec3(1.f, 1.f, 1.f);
 	light.position = glm::vec3(0.f, 1.f, 0.3f);
 	light.direction = glm::vec3(0.f, 1.f, 0.0f);

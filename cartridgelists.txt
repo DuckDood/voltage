@@ -1,4 +1,5 @@
 adddir obj/
+adddir lib/
 adddir static/imgui/obj/
 adddir static/stb_image/obj/
 adddir build/
@@ -6,6 +7,7 @@ cdir obj/
 # cdir static/imgui/obj/
 # cdir static/stb_image/obj/
 cdir build/
+cdir lib/
 
 noall
 make
@@ -18,6 +20,16 @@ dep GL
 dep GLEW
 dep SDL3
 
+bname lib/
+checknext defines.h
+incflag -Iinclude/
+incflag -fPIC
+include voltage.cpp
+buildflag -shared
+build voltage
+rmbuild /
+
+bname build/
 oname static/imgui/obj/
 sname static/imgui/src/
 include imgui_demo.cpp
@@ -30,6 +42,7 @@ include imgui_widgets.cpp
 oname static/stb_image/obj/
 sname static/stb_image/src/
 
+
 incflag -Iinclude/
 include stb_image.c
 sname src/
@@ -39,10 +52,8 @@ checknext defines.h
 incflag -Iinclude/
 include main.cpp
 
-checknext defines.h
-incflag -Iinclude/
-include voltage.cpp
-
+buildflag -Llib/
+buildflag -l:voltage
 build voltage
 
 rmbuild /
