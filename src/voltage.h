@@ -10,7 +10,7 @@ std::vector<float> load3dCache(std::string path);
 
 // https://developer.mozilla.org/en-US/docs/Games/Techniques/3D_collision_detection
 // i couldve figured it out but its easier to copy just for easy comparison logic
-class boundingBox {
+/*class boundingBox {
 	public:
 	float minX;
 	float maxX;
@@ -34,7 +34,7 @@ class Hitbox : public boundingBox {
 		int id = 0;
 		bool isOverlapped();
 
-};
+};*/
 
 class Framebuffer {
 	public:
@@ -53,6 +53,7 @@ class Framebuffer {
 };
 
 #if HITBOX_VIEW
+/*
 class HitboxRenderer {
 	public:
 	unsigned int VAO;
@@ -63,6 +64,7 @@ class HitboxRenderer {
 	void Update();
 	void Update(Hitbox* next);
 };
+*/
 #endif
 
 class Transform {
@@ -120,11 +122,15 @@ class Model : public Transform {
 	Material mat;
 
 		Model(std::vector<float> obj, Material material);
+		void Init(std::vector<float> obj, Material material);
+		void Init(Model *m);
 		Model(Model *m);
+		Model();
 	
 		void Unload();
 };
 
+/*
 class Object : public Model {
 	public:
 		using Model::Model;
@@ -132,6 +138,7 @@ class Object : public Model {
 
 		void UpdateHitbox();
 };
+*/
 
 struct Light {
 	glm::vec3 position;

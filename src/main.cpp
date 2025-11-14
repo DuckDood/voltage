@@ -197,26 +197,19 @@ int main() {
 	float borderColor[] = { 0.0f, 0.0f, 0.0f, 1.0f };
 	glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
 
-	std::vector<Hitbox*> hitboxes;
-
 	Material material;
 	material.diffuseTex = texture;
 	material.specularTex = texture;
 	material.normal = texture3;
 	material.shininess = 32;
-	Object model(load3dCache("resources/cache/dragon.vtcache"), material);
+	Model model(load3dCache("resources/cache/dragon.vtcache"), material);
 	model.position.z = -2;
 	model.position.y = -1.8;
 	model.cullType = BACK;
 	material.diffuseTex = texture2;
 	material.specularTex = texture2;
 
-	Object floor(load3dCache("resources/cache/cube.vtcache"), material);
-	hitboxes.push_back(&model.hitbox);
-	hitboxes.push_back(&floor.hitbox);
-
-	model.hitbox.hitboxes = &hitboxes;
-	floor.hitbox.hitboxes = &hitboxes;
+	Model floor(load3dCache("resources/cache/cube.vtcache"), material);
 
 	floor.position.y = -2;
 	floor.scale.x = 100;
@@ -232,12 +225,6 @@ int main() {
 	#if HITBOX_VIEW
 	Shader hitShader("shaders/hitVert.glsl", "shaders/hitFrag.glsl");
 	#endif
-
-	Hitbox cameraBound;
-	cameraBound.id = 1;
-	hitboxes.push_back(&cameraBound);
-	cameraBound.hitboxes = &hitboxes;
-	cameraBound.scale = glm::vec3(0.2,0.35,0.2);
 
 	
 	std::vector<Light*> lights;
@@ -271,20 +258,16 @@ int main() {
 
 	glm::vec3 velocity(0,0,0);
 
-	#if HITBOX_VIEW
-	HitboxRenderer hitRenderer;
-	#endif
-
 	double prevTime = SDL_GetTicks()/1000.;
-	int frameCount = 0;
+	int framerateCount = 0;
 	bool screenShader = true;
 	int sensitivity = 1;
 
 	bool running = true;
 	SDL_Event event;
-	int c = 0;
+	int frameCount = 0;
 	while(running) {
-		c++;
+		frameCount++;
 		#if USING_IMGUI
 		ImGui_ImplOpenGL3_NewFrame();
 		ImGui_ImplSDL3_NewFrame();
@@ -333,10 +316,10 @@ int main() {
 		}
 		const bool *keyStates = SDL_GetKeyboardState(nullptr);
 		double currentTime = SDL_GetTicks()/1000.;
-		frameCount++;
+		framerateCount++;
 		if((currentTime - prevTime) >= 1) {
-			std::cout << frameCount << std::endl;
-			frameCount = 0;
+			std::cout << framerateCount << std::endl;
+			framerateCount = 0;
 			prevTime = currentTime;
 		}
 		glClear(GL_COLOR_BUFFER_BIT);
@@ -371,79 +354,39 @@ int main() {
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		
+		float speed = keyStates[SDL_SCANCODE_LSHIFT] ? 0.1 : 0.03;
 		if(keyStates[SDL_SCANCODE_S]) {
-			//velocity.z += cos(cam.yaw)*0.03*cos(cam.pitch);
-			//velocity.x += sin(cam.yaw)*0.03*cos(cam.pitch);
+			velocity.z += cos(cam.yaw)*cos(cam.pitch) * speed;
+			velocity.x += sin(cam.yaw)*cos(cam.pitch) * speed;
 
-			//velocity.y -= sin(cam.pitch)*0.03;
+			velocity.y -= sin(cam.pitch) * speed;
 			
-			velocity.z += cos(cam.yaw)*0.03;
-			velocity.x += sin(cam.yaw)*0.03;
+			/*velocity.z += cos(cam.yaw)*0.03;
+			velocity.x += sin(cam.yaw)*0.03;*/
 		}
 		if(keyStates[SDL_SCANCODE_W]) {
-			//velocity.z -= cos(cam.yaw)*0.03*cos(cam.pitch);
-			//velocity.x -= sin(cam.yaw)*0.03*cos(cam.pitch);
+			velocity.z -= cos(cam.yaw)*cos(cam.pitch) * speed;
+			velocity.x -= sin(cam.yaw)*cos(cam.pitch) * speed;
 
-			//velocity.y += sin(cam.pitch)*0.03;
+			velocity.y += sin(cam.pitch) * speed;
 			
-			velocity.z -= cos(cam.yaw)*0.03;
-			velocity.x -= sin(cam.yaw)*0.03;
+			//velocity.z -= cos(cam.yaw)*0.03;
+			//velocity.x -= sin(cam.yaw)*0.03;
 		}
 		if(keyStates[SDL_SCANCODE_A]) {
-			velocity.z += sin(cam.yaw)*0.02;
-			velocity.x -= cos(cam.yaw)*0.02;
+			velocity.z += sin(cam.yaw)*speed;
+			velocity.x -= cos(cam.yaw)*speed;
 		}
 		if(keyStates[SDL_SCANCODE_D]) {
-			velocity.z -= sin(cam.yaw)*0.02;
-			velocity.x += cos(cam.yaw)*0.02;
+			velocity.z -= sin(cam.yaw)*speed;
+			velocity.x += cos(cam.yaw)*speed;
 		}
-		velocity.y -= 0.006;
 
 		cam.position.x += velocity.x;
-		cameraBound.position = cam.position;
-		cameraBound.Update();
-		if(cameraBound.isOverlapped()) {
-			cam.position.x -= velocity.x;	
-			velocity.x = 0;
-		}
-		cameraBound.position = cam.position;
-
-
 		cam.position.y += velocity.y;
-		cameraBound.position = cam.position;
-		cameraBound.Update();
-		if(cameraBound.isOverlapped()) {
-			cam.position.y -= velocity.y;	
-			velocity.y = 0;
-		}
-		cameraBound.position = cam.position;
-
 		cam.position.z += velocity.z;
-		cameraBound.position = cam.position;
-		cameraBound.Update();
-		if(cameraBound.isOverlapped()) {
-			cam.position.z -= velocity.z;	
-			velocity.z = 0;
-		}
-		cameraBound.position = cam.position;
 
-		velocity.x *= 0.7;
-		velocity.z *= 0.7;
-		if(velocity.y < -0.5) {
-			velocity.y = -0.5;
-		}
-		cameraBound.Update();
-
-		Hitbox cameraFloorBound = cameraBound;
-		cameraFloorBound.scale.z *= 0.9;
-		cameraFloorBound.scale.x *= 0.9;
-		cameraFloorBound.position.y -=0.1;
-		cameraFloorBound.Update();
-		if(cameraFloorBound.isOverlapped()) {
-			if(keyStates[SDL_SCANCODE_SPACE]) {
-				velocity.y = 0.1;
-			}
-		}
+		velocity *= 0.7;
 
 		if(keyStates[SDL_SCANCODE_COMMA]) {
 			cam.fov += glm::radians(.5);
@@ -464,9 +407,6 @@ int main() {
 
 		cam.UpdateRotation();
 
-		model.UpdateHitbox();
-		floor.UpdateHitbox();
-
 
 		perspective = glm::perspective(cam.fov, (float)winX/(float)winY, 0.1f, 100.f);
 
@@ -484,41 +424,13 @@ int main() {
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, mainFramebuffer.colorBuffers[0]);
 		glUseProgram(screen.programID);
-		glUniform1f(glGetUniformLocation(screen.programID, "time"), c);
+		glUniform1f(glGetUniformLocation(screen.programID, "time"), frameCount);
 		glUniform1i(glGetUniformLocation(screen.programID, "tex"), 0);
 
 		glBindVertexArray(qVAO);
 		glDrawArrays(GL_TRIANGLES, 0, 6);
 		glEnable(GL_DEPTH_TEST);
 		}
-
-		#if HITBOX_VIEW
-		glUseProgram(hitShader.programID);
-
-		glUniformMatrix4fv(glGetUniformLocation(hitShader.programID, "viewMat"), 1, GL_FALSE, glm::value_ptr(cam.invTransformMatrix));
-		glUniformMatrix4fv(glGetUniformLocation(hitShader.programID, "perspMat"), 1, GL_FALSE, glm::value_ptr(perspective));
-		hitShader.setUniformVec3Floats("color", 0., 1., 0.);
-
-		glDisable(GL_DEPTH_TEST);
-		hitRenderer.Update(&model.hitbox);
-		glBindVertexArray(hitRenderer.VAO);
-		glDrawElements(GL_LINES, 24, GL_UNSIGNED_INT, 0);
-
-		hitRenderer.Update(&floor.hitbox);
-		glBindVertexArray(hitRenderer.VAO);
-		glDrawElements(GL_LINES, 24, GL_UNSIGNED_INT, 0);
-
-		hitRenderer.Update(&cameraBound);
-		glBindVertexArray(hitRenderer.VAO);
-		glDrawElements(GL_LINES, 24, GL_UNSIGNED_INT, 0);
-
-		hitShader.setUniformVec3Floats("color", 1., 0., 0.);
-		hitRenderer.Update(&cameraFloorBound);
-		glBindVertexArray(hitRenderer.VAO);
-		glDrawElements(GL_LINES, 24, GL_UNSIGNED_INT, 0);
-
-		glEnable(GL_DEPTH_TEST);
-		#endif
 
 		#if USING_IMGUI	
 		ImGui::Render();

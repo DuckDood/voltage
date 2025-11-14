@@ -3,7 +3,6 @@
 #include <sstream>
 #include <fstream>
 #include <GL/glew.h>
-#include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -241,7 +240,7 @@ std::vector<float> load3dCache(std::string path) {
 
 // https://developer.mozilla.org/en-US/docs/Games/Techniques/3D_collision_detection
 // i couldve figured it out but its easier to copy just for easy comparison logic
-void boundingBox::Update() {
+/*void boundingBox::Update() {
 	minX = position.x - scale.x;
 	maxX = position.x + scale.x;
 
@@ -264,7 +263,7 @@ bool Hitbox::isOverlapped() {
 		}
 	}
 	return false;
-}
+}*/
 
 
 
@@ -296,7 +295,7 @@ Framebuffer::Framebuffer(int inWidth, int inHeight, std::vector<GLenum> bufferTy
 		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, this->renderbuffer);
 
 		if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
-			std::cout << "Framebuffer failed to initialise" << std::endl;
+			std::cout << "Framebuffer failed to initialize" << std::endl;
 		}
 		glDrawBuffers(this->bufferTypes.size(), this->bufferTypes.data());
 
@@ -358,7 +357,7 @@ void Framebuffer::End() {
 }
 
 #if HITBOX_VIEW
-HitboxRenderer::HitboxRenderer() {
+/*HitboxRenderer::HitboxRenderer() {
 	glGenVertexArrays(1, &VAO);
 	glBindVertexArray(VAO);
 	glGenBuffers(1, &VBO);
@@ -419,7 +418,7 @@ void HitboxRenderer::Update(Hitbox* next) {
 	};
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), NULL, GL_DYNAMIC_DRAW);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_DYNAMIC_DRAW);
-}
+}*/
 #endif
 
 void Transform::UpdateRotation() {
@@ -467,13 +466,56 @@ Model::Model(std::vector<float> obj, Material material) {
 
 	this->mat = material;
 	usable = true;
-	
 }
+
 Model::Model(Model *m) {
+	if(!m->usable) {
+		std::cout << "Trying to initialize model with uninitialized model" << std::endl;
+		return;
+	}
 	this->VAO = m->VAO;
 	this->VBO = m->VBO;
 	this->vertCount = m->vertCount;
 	this->mat = m->mat;
+	usable = true;
+}
+
+Model::Model() {
+}
+
+void Model::Init(Model *m) {
+	if(!m->usable) {
+		std::cout << "Trying to initialize model with uninitialized model" << std::endl;
+		return;
+	}
+	this->VAO = m->VAO;
+	this->VBO = m->VBO;
+	this->vertCount = m->vertCount;
+	this->mat = m->mat;
+	usable = true;
+}
+
+void Model::Init(std::vector<float> obj, Material material) {
+	glGenVertexArrays(1, &VAO);
+	glBindVertexArray(VAO);
+
+	glGenBuffers(1, &VBO);
+	glBindBuffer(GL_ARRAY_BUFFER, VBO);
+	glBufferData(GL_ARRAY_BUFFER, obj.size() * sizeof(float), obj.data(), GL_STATIC_DRAW);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void*)(0));
+	glEnableVertexAttribArray(0);
+
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void*)(3*sizeof(float)));
+	glEnableVertexAttribArray(1);
+
+	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void*)(5*sizeof(float)));
+	glEnableVertexAttribArray(2);
+
+	glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void*)(8*sizeof(float)));
+	glEnableVertexAttribArray(3);
+	vertCount = obj.size()/11;
+
+	this->mat = material;
 	usable = true;
 }
 	
@@ -484,11 +526,11 @@ void Model::Unload() {
 	glDeleteVertexArrays(1, &VAO);
 }
 
-void Object::UpdateHitbox() {
+/*void Object::UpdateHitbox() {
 	this->hitbox.scale = this->scale;
 	this->hitbox.position = this->position;
 	this->hitbox.Update();
-}
+}*/
 
 void setSceneLights(Shader shader, std::vector<Light*> lights) {
 	shader.setUniformInt("lightNumber", lights.size());
@@ -508,48 +550,52 @@ void setSceneLights(Shader shader, std::vector<Light*> lights) {
 }
 
 void RenderModel(Model model, Shader shader) {
-		model.UpdateRotation();
-		switch(model.cullType) {
-			case 0:
-				glDisable(GL_CULL_FACE);
-				break;
-			case 1:
-				glEnable(GL_CULL_FACE);
-				glCullFace(GL_BACK);
-				break;
-			case 2:
-				glEnable(GL_CULL_FACE);
-				glCullFace(GL_FRONT);
-				break;
-		}
+	if(!model.usable) {
+		std::cout << "Model uninitialized :(" << std::endl;
+		return;
+	}
+	model.UpdateRotation();
+	switch(model.cullType) {
+		case 0:
+			glDisable(GL_CULL_FACE);
+			break;
+		case 1:
+			glEnable(GL_CULL_FACE);
+			glCullFace(GL_BACK);
+			break;
+		case 2:
+			glEnable(GL_CULL_FACE);
+			glCullFace(GL_FRONT);
+			break;
+	}
 
-		glUseProgram(shader.programID);
+	glUseProgram(shader.programID);
 
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, model.mat.diffuseTex);
-		glActiveTexture(GL_TEXTURE1);
-		glBindTexture(GL_TEXTURE_2D, model.mat.specularTex);
-		glActiveTexture(GL_TEXTURE2);
-		glBindTexture(GL_TEXTURE_2D, model.mat.normal);
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, model.mat.diffuseTex);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, model.mat.specularTex);
+	glActiveTexture(GL_TEXTURE2);
+	glBindTexture(GL_TEXTURE_2D, model.mat.normal);
 
-		glUniformMatrix4fv(glGetUniformLocation(shader.programID, "modelMat"), 1, GL_FALSE, glm::value_ptr(model.transformMatrix));
-		shader.setUniformFloat("material.shininess", model.mat.shininess);
+	glUniformMatrix4fv(glGetUniformLocation(shader.programID, "modelMat"), 1, GL_FALSE, glm::value_ptr(model.transformMatrix));
+	shader.setUniformFloat("material.shininess", model.mat.shininess);
 
-		shader.setUniformInt("material.useLighting", model.mat.useLighting);
+	shader.setUniformInt("material.useLighting", model.mat.useLighting);
 
-		shader.setUniformInt("material.useDiffuseTex", model.mat.useDiffuseTex);
-		shader.setUniformInt("material.useSpecularTex", model.mat.useSpecularTex);
-		shader.setUniformInt("material.useNormalMap", model.mat.useNormalMap);
+	shader.setUniformInt("material.useDiffuseTex", model.mat.useDiffuseTex);
+	shader.setUniformInt("material.useSpecularTex", model.mat.useSpecularTex);
+	shader.setUniformInt("material.useNormalMap", model.mat.useNormalMap);
 
-		shader.setUniformVec4("material.diffuseColor", model.mat.diffuseColor);
-		shader.setUniformVec4("material.specularColor", model.mat.specularColor);
+	shader.setUniformVec4("material.diffuseColor", model.mat.diffuseColor);
+	shader.setUniformVec4("material.specularColor", model.mat.specularColor);
 
-		shader.setUniformInt("material.diffuse", 0);
-		shader.setUniformInt("material.specular", 1);
-		shader.setUniformInt("material.normal", 2);
+	shader.setUniformInt("material.diffuse", 0);
+	shader.setUniformInt("material.specular", 1);
+	shader.setUniformInt("material.normal", 2);
 
 
-		glBindVertexArray(model.VAO);
-		glDrawArrays(GL_TRIANGLES, 0, model.vertCount);
+	glBindVertexArray(model.VAO);
+	glDrawArrays(GL_TRIANGLES, 0, model.vertCount);
 }
 

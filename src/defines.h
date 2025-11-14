@@ -1,5 +1,5 @@
 #ifndef HITBOX_VIEW
-#define HITBOX_VIEW 0
+#define HITBOX_VIEW 1
 #endif
 
 #ifndef USING_IMGUI
