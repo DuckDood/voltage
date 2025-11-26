@@ -28,8 +28,9 @@ void main() {
 	uv.y /= 240;
 	vec2 d = v_texcoord - 0.5;
 	float rad = dot(d,d);
-	uv+=d * rad * 0.3;
-	uv2+=d * rad * 0.3;
+	float bulge = 0.3;
+	uv+=d * rad * bulge;
+	uv2+=d * rad * bulge;
 
 	if(uv2.x > 1 || uv2.x < 0 || uv2.y > 1 || uv2.y < 0) {
 		fragColor = vec4(0,0,0,1);

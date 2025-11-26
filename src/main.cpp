@@ -117,7 +117,7 @@ int main() {
 		SDL_Quit();
 		return 1;
 	}
-	SDL_GL_SetSwapInterval(0);
+	//SDL_GL_SetSwapInterval(0);
 	glViewport(0,0,INIT_SCR_WIDTH,INIT_SCR_HEIGHT);
 	bool capture = true;
 	#if USING_IMGUI
@@ -202,14 +202,16 @@ int main() {
 	material.specularTex = texture;
 	material.normal = texture3;
 	material.shininess = 32;
-	Model model(load3dCache("resources/cache/dragon.vtcache"), material);
+	//Model model(load3dCache("resources/cache/dragon.vtcache"), material);
+	Model model(LoadObjByName("resources/models/cube.obj"), material);
 	model.position.z = -2;
 	model.position.y = -1.8;
 	model.cullType = BACK;
 	material.diffuseTex = texture2;
 	material.specularTex = texture2;
 
-	Model floor(load3dCache("resources/cache/cube.vtcache"), material);
+	//Model floor(load3dCache("resources/cache/cube.vtcache"), material);
+	Model floor(&model);
 
 	floor.position.y = -2;
 	floor.scale.x = 100;
@@ -408,7 +410,7 @@ int main() {
 		cam.UpdateRotation();
 
 
-		perspective = glm::perspective(cam.fov, (float)winX/(float)winY, 0.1f, 100.f);
+		perspective = glm::perspective(cam.fov, (float)winX/(float)winY, 0.1f, 1000.f);
 
 		glUniformMatrix4fv(glGetUniformLocation(program.programID, "viewMat"), 1, GL_FALSE, glm::value_ptr(cam.invTransformMatrix));
 		glUniformMatrix4fv(glGetUniformLocation(program.programID, "perspMat"), 1, GL_FALSE, glm::value_ptr(perspective));

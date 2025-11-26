@@ -2,11 +2,17 @@
 #include <GL/glew.h>
 #include "shader.h"
 
-std::vector<float> LoadObjFile(std::string obj);
 
-std::vector<float> LoadObjByName(std::string path);
+struct MeshData {
+	std::vector<float> vertData;
+	std::vector<GLuint> vertOrder;
+};
 
-std::vector<float> load3dCache(std::string path);
+MeshData LoadObjFile(std::string obj);
+
+MeshData LoadObjByName(std::string path);
+
+MeshData load3dCache(std::string path);
 
 // https://developer.mozilla.org/en-US/docs/Games/Techniques/3D_collision_detection
 // i couldve figured it out but its easier to copy just for easy comparison logic
@@ -79,7 +85,7 @@ class Transform {
 	glm::mat4 translationMatrix = glm::mat4(1.f);
 	glm::mat4 scaleMatrix = glm::mat4(1.f);
 
-	Transform* parent = NULL;
+	Transform* parent = nullptr;
 
 	void UpdateRotation();
 };
@@ -106,6 +112,7 @@ struct Material {
 	bool useSpecularTex = 1;
 	bool useNormalMap = 0;
 };
+
 enum CULL {
 	NONE = 0,
 	BACK = 1,
@@ -116,18 +123,19 @@ class Model : public Transform {
 	public:
 	unsigned int VAO;
 	unsigned int VBO;
+	unsigned int EBO;
 	bool usable = false;
 	int vertCount;
 	int cullType = 0;
 	Material mat;
 
-		Model(std::vector<float> obj, Material material);
-		void Init(std::vector<float> obj, Material material);
-		void Init(Model *m);
-		Model(Model *m);
-		Model();
+	Model(MeshData obj, Material material);
+	void Init(MeshData obj, Material material);
+	void Init(Model *m);
+	Model(Model *m);
+	Model();
 	
-		void Unload();
+	void Unload();
 };
 
 /*

@@ -67,7 +67,7 @@ class float3{
 };
 
 
-std::vector<float> LoadObjFile(std::string obj) {
+MeshData LoadObjFile(std::string obj) {
 	std::vector<float3> allPoints;
 	std::vector<float3> triPoints;
 	std::vector<float2> allTexCoords;
@@ -196,6 +196,7 @@ std::vector<float> LoadObjFile(std::string obj) {
 	}
 
 	std::vector<float> value;
+	std::vector<GLuint> order;
 	for(unsigned long int i = 0; i < triPoints.size(); i++) {
 		value.push_back(triPoints.at(i).x);
 		value.push_back(triPoints.at(i).y);
@@ -211,18 +212,24 @@ std::vector<float> LoadObjFile(std::string obj) {
 		value.push_back(tangents.at(i).x);
 		value.push_back(tangents.at(i).y);
 		value.push_back(tangents.at(i).z);
+		order.push_back(i);
 	}
-	return value;
+
+	MeshData mesh;
+	mesh.vertData = value;
+	mesh.vertOrder = order;
+
+	return mesh;
 }
 
-std::vector<float> LoadObjByName(std::string path) {
+MeshData LoadObjByName(std::string path) {
 	std::ifstream file(path);
 	std::string fileStr = "";
 	for(std::string line; std::getline(file, line); fileStr += line + "\n");
 	return LoadObjFile(fileStr);
 }
 
-std::vector<float> load3dCache(std::string path) {
+MeshData load3dCache(std::string path) {
 	std::ifstream cacheFile(path, std::ios::binary);
 	if(!cacheFile.good()) {
 		std::cerr << "Cache file does not exist.\n";
@@ -235,7 +242,7 @@ std::vector<float> load3dCache(std::string path) {
 
 	cacheFile.read((char*)value.data(), size);
 
-	return value;
+	return {value};
 }
 
 // https://developer.mozilla.org/en-US/docs/Games/Techniques/3D_collision_detection
@@ -444,40 +451,12 @@ Camera::Camera() {
 	fov = glm::radians(45.f);
 }
 
-Model::Model(std::vector<float> obj, Material material) {
-	glGenVertexArrays(1, &VAO);
-	glBindVertexArray(VAO);
-
-	glGenBuffers(1, &VBO);
-	glBindBuffer(GL_ARRAY_BUFFER, VBO);
-	glBufferData(GL_ARRAY_BUFFER, obj.size() * sizeof(float), obj.data(), GL_STATIC_DRAW);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void*)(0));
-	glEnableVertexAttribArray(0);
-
-	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void*)(3*sizeof(float)));
-	glEnableVertexAttribArray(1);
-
-	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void*)(5*sizeof(float)));
-	glEnableVertexAttribArray(2);
-
-	glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void*)(8*sizeof(float)));
-	glEnableVertexAttribArray(3);
-	vertCount = obj.size()/11;
-
-	this->mat = material;
-	usable = true;
+Model::Model(MeshData mesh, Material material) {
+	Model::Init(mesh, material);
 }
 
 Model::Model(Model *m) {
-	if(!m->usable) {
-		std::cout << "Trying to initialize model with uninitialized model" << std::endl;
-		return;
-	}
-	this->VAO = m->VAO;
-	this->VBO = m->VBO;
-	this->vertCount = m->vertCount;
-	this->mat = m->mat;
-	usable = true;
+	Model::Init(m);
 }
 
 Model::Model() {
@@ -490,18 +469,25 @@ void Model::Init(Model *m) {
 	}
 	this->VAO = m->VAO;
 	this->VBO = m->VBO;
+	this->EBO = m->EBO;
 	this->vertCount = m->vertCount;
 	this->mat = m->mat;
 	usable = true;
 }
 
-void Model::Init(std::vector<float> obj, Material material) {
+void Model::Init(MeshData mesh, Material material) {
+	std::vector<float> vertData = mesh.vertData;
+	std::vector<GLuint> vertOrder = mesh.vertOrder;
 	glGenVertexArrays(1, &VAO);
 	glBindVertexArray(VAO);
 
+	glGenBuffers(1, &EBO);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, vertOrder.size() * sizeof(GLuint), vertOrder.data(), GL_STATIC_DRAW);
+
 	glGenBuffers(1, &VBO);
 	glBindBuffer(GL_ARRAY_BUFFER, VBO);
-	glBufferData(GL_ARRAY_BUFFER, obj.size() * sizeof(float), obj.data(), GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, vertData.size() * sizeof(float), vertData.data(), GL_STATIC_DRAW);
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void*)(0));
 	glEnableVertexAttribArray(0);
 
@@ -513,7 +499,7 @@ void Model::Init(std::vector<float> obj, Material material) {
 
 	glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void*)(8*sizeof(float)));
 	glEnableVertexAttribArray(3);
-	vertCount = obj.size()/11;
+	vertCount = vertData.size()/11;
 
 	this->mat = material;
 	usable = true;
@@ -523,6 +509,7 @@ void Model::Unload() {
 	glBindVertexArray(0);
 	glDeleteBuffers(1, &VBO);
 	usable = false;
+	glDeleteBuffers(1, &EBO);
 	glDeleteVertexArrays(1, &VAO);
 }
 
@@ -596,6 +583,7 @@ void RenderModel(Model model, Shader shader) {
 
 
 	glBindVertexArray(model.VAO);
-	glDrawArrays(GL_TRIANGLES, 0, model.vertCount);
+
+	glDrawElements(GL_TRIANGLES, model.vertCount, GL_UNSIGNED_INT, 0);
 }
 

@@ -1,0 +1,52 @@
+dir obj
+dir build
+
+dir static/imgui/obj
+dir static/stb_image/obj
+
+embedmake
+clean:
+	rm -r obj/
+	rm -r build/
+.PHONY: clean
+cleanstatic:
+	rm -r static/imgui/obj/ static/stb_image/obj/
+.PHONY: cleanstatic
+endmake
+
+buildflagL -lGL
+buildflagL -lGLEW
+
+buildflagW -lopengl32
+buildflagW -lglew32
+
+buildflag -lSDL3
+
+objdir static/imgui/obj
+srcdir static/imgui/src
+src imgui_demo.cpp
+src imgui_draw.cpp
+src imgui_impl_sdl3.cpp
+src imgui_impl_opengl3.cpp
+src imgui.cpp
+src imgui_tables.cpp
+src imgui_widgets.cpp
+objdir static/stb_image/obj
+srcdir static/stb_image/src
+
+srcflag -Iinclude/
+src stb_image.c
+srcdir src
+objdir obj
+
+src voltage.cpp
+
+src main.cpp
+
+build voltage
+
+rmbuild
+
+src objCache.cpp
+
+build cacheObj
